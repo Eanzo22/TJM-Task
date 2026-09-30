@@ -2,7 +2,8 @@
 
 The profile is a local, reviewed mapping of semantic operations to observed controls.
 Missing mappings fail preflight, before any business mutation. Profiles are not proof
-of a successful live run; see docs/requirements.md for verification status.
+of a successful live run; see documents/implementation/requirements.md at the
+workspace root for verification status.
 """
 import json
 import time

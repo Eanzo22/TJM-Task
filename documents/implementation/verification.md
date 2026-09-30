@@ -17,14 +17,14 @@ Test dependency versions installed: Pydantic 2.13.5, pywinauto 0.6.9, Pillow 12.
 
 The original screenshot is unmodified. These captions annotate its observed state; they do not claim automation created the displayed records.
 
-![Actual existing Fakturama state, read-only diagnostic](../evidence/private/diagnostics/fakturama.png)
+![Actual existing Fakturama state, read-only diagnostic](../../code/evidence/private/diagnostics/fakturama.png)
 
 1. **Existing document tabs:** related Order and Invoice tabs were already open. They were not created by this run and were preserved.
 2. **Address and tax discrepancy:** the existing visible invoice showed Georgia and Free of Tax, inconsistent with the supplied image's Germany and VAT. This is a warning, not a completed result.
 3. **Amounts and payment:** the existing visible invoice displayed a dollar-denominated 570.00 total and was unpaid. The source image requires EUR with VAT and paid information. No settings or record values were changed to hide that mismatch.
 4. **Accessibility limitation:** header controls were exposed, but the captured tree had no `DataItem` controls for the visible tables. The UI adapter therefore refuses to infer that the tables contain no records.
 
-Private originals:
+Private originals (paths relative to `code/`):
 
 - `evidence/private/diagnostics/fakturama.png`
 - `evidence/private/diagnostics/fakturama-uia.json`

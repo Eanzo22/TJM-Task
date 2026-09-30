@@ -2,10 +2,11 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest_runs/
 *.egg-info/
 .env
 runs/
-evidence/private/
+code/evidence/private/
 inputs/
 *.docx
 *.pdf
@@ -14,4 +15,4 @@ qa*/
 _qa*/
 build_*design.py
 build_revised_flow_documents.py
-config/live*.json
+code/config/live*.json
