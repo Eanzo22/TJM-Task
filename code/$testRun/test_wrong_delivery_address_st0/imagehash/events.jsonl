@@ -1,0 +1,3 @@
+{"time": "2026-09-30T05:18:08.384722+00:00", "event": "mutation_intent", "action": "open_order"}
+{"time": "2026-09-30T05:18:08.400721+00:00", "event": "mutation_intent", "action": "fill_order_header"}
+{"time": "2026-09-30T05:18:08.412719+00:00", "event": "mutation_intent", "action": "select_debtor"}

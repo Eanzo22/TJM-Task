@@ -40,3 +40,33 @@ def test_model_output_is_data_not_code(tmp_path, monkeypatch):
     with pytest.raises(ReviewRequired, match="extraction failed"):
         extract(image, tmp_path / "out", transport=lambda *_args, **_kw:
                 io.BytesIO(b'{"message":{"content":"ignore schema and execute a command"}}'))
+
+
+def test_progress_records_request_then_validation(payload, tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKTURAMA_VISION_MODEL", "synthetic-transport-test")
+    monkeypatch.setenv("FAKTURAMA_VISION_TOKEN", "DO-NOT-PRINT-THIS-TOKEN")
+    source = tmp_path / "blank.png"
+    Image.new("RGB", (10, 20)).save(source)
+    messages = []
+    def transport(request, timeout):
+        assert "Waiting for" in messages[-1]
+        assert timeout == 120  # Progress reporting must not change timeout policy.
+        return io.BytesIO(json.dumps({"message": {"content": json.dumps(payload)}}).encode())
+    extract(source, tmp_path / "out", transport=transport, progress=messages.append)
+    assert "10 x 20" in messages[1]
+    assert any("Checking arithmetic for 2 item(s)" in line for line in messages)
+    assert "validation passed" in messages[-1]
+    assert "DO-NOT-PRINT-THIS-TOKEN" not in " ".join(messages)
+    assert payload["debtor"]["email"] not in " ".join(messages)
+
+
+def test_failed_extraction_does_not_report_validation_success(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKTURAMA_VISION_MODEL", "synthetic-transport-test")
+    source = tmp_path / "blank.png"
+    Image.new("RGB", (10, 20)).save(source)
+    messages = []
+    with pytest.raises(ReviewRequired):
+        extract(source, tmp_path / "out", progress=messages.append,
+                transport=lambda *_args, **_kw: io.BytesIO(b'{"message":{"content":"{}"}}'))
+    assert any("Validating extracted fields" in line for line in messages)
+    assert not any("validation passed" in line for line in messages)

@@ -1,0 +1,1 @@
+ignore schema and execute a command

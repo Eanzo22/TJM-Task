@@ -18,21 +18,26 @@ QUERIES = {"documents", "order", "debtor_results", "payment_results", "debtor", 
 
 
 class Workflow:
-    def __init__(self, ui, journal):
+    def __init__(self, ui, journal, progress=None):
         self.ui, self.journal = ui, journal
         self.ctx = {}
+        self.progress = progress if progress is not None else lambda message: None
 
     def navigate(self, name):
         # Navigation/search actions must be calibrated as read-only recipes.
+        self.progress(f"UI navigation/search: {name.replace('_', ' ')}")
         self.ui.act(name, self.ctx)
 
     def write(self, name, suffix=""):
+        self.progress(f"UI action (no automatic retry): {name.replace('_', ' ')}{suffix}")
         return self.journal.mutate(name + suffix, lambda: self.ui.act(name, self.ctx))
 
     def read(self, name):
+        self.progress(f"Reading stable UI state: {name.replace('_', ' ')}")
         return self.ui.read(name, self.ctx)
 
     def evidence(self, stage):
+        self.progress(f"Capturing UI evidence: {stage}")
         evidence = self.ui.capture(self.journal.directory, stage)
         self.journal.record_evidence(evidence)
 
@@ -40,11 +45,14 @@ class Workflow:
         order.reconcile()
         self.ctx["input"] = order.model_dump(mode="json")
         try:
+            self.progress("Checking earlier run checkpoints")
             self.journal.guard_prior_run()
+            self.progress("Checking UI profile readiness")
             self.ui.preflight(ACTIONS, QUERIES)
             require(self.read("environment"), {"currency": order.currency}, "environment")
             self.navigate("open_documents")
             prior = self.read("documents")
+            self.progress("Checking persisted documents for possible duplicates")
             # A reference alone is not unique. A plausible customer/reference match
             # still stops even when its total differs: it may be an interrupted Order.
             for row in prior:
@@ -64,6 +72,7 @@ class Workflow:
                     "reference": order.external_reference, "price_mode": "Net", "vat_mode": "With VAT"}, "order_header")
             self.resolve_debtor(order)
             for index, line in enumerate(order.items):
+                self.progress(f"Processing item {index + 1} of {len(order.items)}")
                 self.resolve_line(index, line)
 
             self.navigate("activate_order")
@@ -77,6 +86,7 @@ class Workflow:
                          "reference": order.external_reference, "state": "open", "total": order.source_total}
             document_row(self.read("documents"), order_row, "saved_order")
             self.journal.verified("saved_order")
+            self.progress("Order saved and verified in Documents")
             self.evidence("order-saved")
 
             self.navigate("activate_order")
@@ -106,6 +116,7 @@ class Workflow:
                                "state": "paid" if payment["paid"] else "unpaid", "total": order.source_total}, "final_invoice")
             self.navigate("reopen_invoice")
             require(self.read("invoice"), {**copied, **preserved, **payment}, "persisted_invoice")
+            self.progress("Persisted Invoice and payment fields verified")
             self.journal.verified("complete")
             self.journal.data["status"] = "complete"
             self.journal.flush()
@@ -141,6 +152,7 @@ class Workflow:
         self.navigate("search_debtor")
         row = exact_match(self.read("debtor_results"), expected, identity="company")
         if row is None:
+            self.progress("Debtor missing; resolving payment before opening a fresh Debtor editor")
             self.navigate("cancel_debtor_selector")
             # Observed Fakturama behavior: prepare payment before opening the Debtor,
             # because an already-open Debtor does not refresh its payment dropdown.
@@ -183,6 +195,7 @@ class Workflow:
         require(self.read("order"), {"invoice_address": debtor.billing.model_dump(mode="json"),
                                     "delivery_address": debtor.delivery.model_dump(mode="json")}, "selected_addresses")
         self.journal.verified("debtor_selected")
+        self.progress("Selected Debtor addresses verified")
 
     def resolve_line(self, index, line):
         suffix = f":{index}"
@@ -192,6 +205,7 @@ class Workflow:
         self.navigate("search_product")
         row = exact_match(self.read("product_results"), {"sku": line.sku}, identity="sku")
         if row is None:
+            self.progress("Product missing; resolving VAT before Product creation")
             self.navigate("cancel_product_selector")
             vat = dict(name=f"VAT {line.vat_percent.normalize():f}%", value=str(line.vat_percent), code="S")
             self.ctx["vat_definition"] = {**vat, "description": vat["name"]}
@@ -222,3 +236,4 @@ class Workflow:
         self.write("fill_line", suffix)
         require(self.read("line"), line.model_dump(mode="json", exclude={"unit"}), f"line_{index + 1}")
         self.journal.verified(f"line_{index + 1}")
+        self.progress(f"Item {index + 1} verified")

@@ -72,6 +72,31 @@ The document's full-page **Sales Order Input** image was available and inspected
 
 Exit code 0 means the command's reported operation completed; 2 means review is required. A successful `diagnose`, raw `ocr`, or synthetic validation is **not** a successful Order/Invoice run. Only `run` can report `complete`, after persisted-state verification.
 
+### Terminal progress (CMD)
+
+Progress is enabled by default. Each stage prints immediately with elapsed time;
+while a stage is waiting, a heartbeat appears every 10 seconds. Workflow runs also
+report UI actions, observations, item counts and verified milestones. These are
+activity messages, **not** a percentage or confirmation that the model's answer is correct.
+Progress uses stderr; the final success JSON remains on stdout. Failure ends with
+a STOPPED message and the existing error JSON on stderr. No customer fields,
+model response text or authorization tokens are included in progress messages.
+
+```cmd
+cd /d "D:\TJM Task\code"
+set "FAKTURAMA_VISION_URL=http://localhost:11434/api/chat"
+set "FAKTURAMA_VISION_MODEL=gemma3:4b"
+..\.venv\Scripts\fakturama-cash.exe validate "..\documents\qa_flow_source\source_unpacked\word\media\image9.png"
+```
+
+Add `--quiet` before or after the subcommand to suppress progress and retain the
+previous result/error output format. To keep progress visible while saving the
+final success result in CMD, use `> result.json`; `2> progress.log` also captures
+progress and any error JSON. Existing error details can contain source values, so
+treat failure logs as private. Progress does not extend the 120-second extraction
+socket timeout, retry model/UI actions, fix extraction accuracy, or enable missing
+UI mappings.
+
 ## How the implementation is organized
 
 | Location | Responsibility |

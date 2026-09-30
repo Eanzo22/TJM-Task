@@ -148,3 +148,28 @@ def test_unlinked_invoice_stops_before_save(order, tmp_path):
     with pytest.raises(ReviewRequired):
         run(order, ui, tmp_path)
     assert "save_invoice" not in ui.actions
+
+
+def test_workflow_progress_tracks_items_and_verified_stages(order, tmp_path):
+    ui = FakeUI(order, existing=True)
+    messages = []
+    with Journal(tmp_path, "imagehash", semantic_fingerprint(order)) as journal:
+        Workflow(ui, journal, progress=messages.append).run(order)
+    assert "Processing item 1 of 2" in messages
+    assert "Processing item 2 of 2" in messages
+    assert "Order saved and verified in Documents" in messages
+    assert "Persisted Invoice and payment fields verified" in messages
+    assert ui.actions.count("save_order") == 1
+    assert ui.actions.count("save_invoice") == 1
+
+
+def test_progress_does_not_claim_uncertain_save_was_verified(order, tmp_path):
+    ui = FakeUI(order, existing=True, fail="save_order")
+    messages = []
+    with Journal(tmp_path, "imagehash", semantic_fingerprint(order)) as journal:
+        with pytest.raises(ReviewRequired):
+            Workflow(ui, journal, progress=messages.append).run(order)
+    assert any("save order" in line for line in messages)
+    assert "Order saved and verified in Documents" not in messages
+    assert "Persisted Invoice and payment fields verified" not in messages
+    assert ui.actions.count("save_order") == 1

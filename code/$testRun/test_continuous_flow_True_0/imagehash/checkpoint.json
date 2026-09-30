@@ -1,0 +1,42 @@
+{
+  "image_fingerprint": "imagehash",
+  "order_fingerprint": "a80041254a2ac3d3cf0ce149f03b8fe0055adc4cd2eedafff1eec3e4b17353d9",
+  "stage": "complete",
+  "status": "complete",
+  "identifiers": {
+    "order": "TEST-ORDER-01",
+    "invoice": "TEST-INVOICE-01"
+  },
+  "actions": {
+    "open_order": "returned_unverified",
+    "fill_order_header": "returned_unverified",
+    "select_debtor": "returned_unverified",
+    "select_product:0": "returned_unverified",
+    "fill_line:0": "returned_unverified",
+    "select_product:1": "returned_unverified",
+    "fill_line:1": "returned_unverified",
+    "fill_order_totals": "returned_unverified",
+    "save_order": "returned_unverified",
+    "create_linked_invoice": "returned_unverified",
+    "fill_invoice_payment": "returned_unverified",
+    "save_invoice": "returned_unverified"
+  },
+  "evidence": [
+    {
+      "kind": "fake_test_observation",
+      "stage": "order-before-save"
+    },
+    {
+      "kind": "fake_test_observation",
+      "stage": "order-saved"
+    },
+    {
+      "kind": "fake_test_observation",
+      "stage": "invoice-before-save"
+    },
+    {
+      "kind": "fake_test_observation",
+      "stage": "complete"
+    }
+  ]
+}
