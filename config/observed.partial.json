@@ -1,0 +1,17 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 10,
+  "observation": "2026-09-29 live accessibility inspection; names observed, no business writes tested. Numeric SWT IDs were excluded because they change.",
+  "actions": {
+    "open_order": [{"path": [{"control_type": "Button", "title": "Create: New Order"}], "operation": "invoke"}],
+    "save_order": [{"path": [{"control_type": "Button", "title": "Save the current contents"}], "operation": "invoke"}],
+    "save_invoice": [{"path": [{"control_type": "Button", "title": "Save the current contents"}], "operation": "invoke"}],
+    "open_documents": [{"path": [{"control_type": "Pane", "title": "Navigation View"}, {"control_type": "Text", "title": "Documents"}], "operation": "click_bounds"}],
+    "open_payments": [{"path": [{"control_type": "Pane", "title": "Navigation View"}, {"control_type": "Text", "title": "terms of payment"}], "operation": "click_bounds"}],
+    "open_vats": [{"path": [{"control_type": "Pane", "title": "Navigation View"}, {"control_type": "Text", "title": "VATs"}], "operation": "click_bounds"}],
+    "new_debtor": [{"path": [{"control_type": "Pane", "title": "Navigation View"}, {"control_type": "Text", "title": "New Contact"}], "operation": "click_bounds"}],
+    "new_product": [{"path": [{"control_type": "Pane", "title": "Navigation View"}, {"control_type": "Text", "title": "New product"}], "operation": "click_bounds"}]
+  },
+  "queries": {}
+}
