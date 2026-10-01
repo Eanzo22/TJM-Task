@@ -2,7 +2,7 @@
 
 A guarded Python prototype for reading an order image and creating an Order followed by its linked Invoice through Fakturama's Windows UI.
 
-**Status: not yet a working live end-to-end automation.** The business workflow and safety checks are implemented and tested with a fake UI. Live accessibility discovery and raw Windows OCR succeeded. The vision service is not configured, and the live UI profile is incomplete. `run` deliberately stops rather than using guessed selectors or business values.
+**Status: not yet a working live end-to-end automation.** The business workflow and safety checks are implemented and tested with a fake UI. Live accessibility discovery and raw Windows OCR succeeded. Local `gemma3:4b` is available. Image validation now uses cropped-table and non-item extraction passes; the live UI profile remains incomplete. `run` deliberately stops rather than using guessed selectors or business values.
 
 The existing Part 1 Word design documents are preserved unchanged. The assignment remains the authoritative specification; the deviations and unfinished work below must be disclosed with this submission.
 
@@ -10,16 +10,16 @@ The existing Part 1 Word design documents are preserved unchanged. The assignmen
 
 Use Windows with Python 3.11+, an unlocked interactive desktop, and Fakturama running at the same privilege level as Python. Use a disposable Fakturama workspace for calibration. Back up its data first; do not use customer production data.
 
-PowerShell, from the `code` directory. The shared virtual environment remains one level above it:
+CMD, from the `code` directory. The shared virtual environment remains one level above it:
 
-```powershell
+```bat
 py -3 -m venv ..\.venv
 ..\.venv\Scripts\python.exe -m pip install -e ".[test,ocr]"
 ..\.venv\Scripts\python.exe -m pytest -q
 ..\.venv\Scripts\fakturama-cash.exe --help
 ```
 
-The `ocr` extra is optional. It uses Windows' installed English OCR language pack and is diagnostic only. The dependency configuration is in `pyproject.toml`; the environment used for testing is recorded in [verification notes](../documents/implementation/verification.md).
+The `ocr` extra and Windows' installed English OCR language pack are required for image extraction: OCR locates the table boundaries. OCR does not supply business values. The standalone `ocr` command remains a raw diagnostic. The dependency configuration is in `pyproject.toml`; the environment used for testing is recorded in [verification notes](../documents/implementation/verification.md).
 
 ## Commands
 
@@ -27,43 +27,51 @@ No activation is required when using these explicit executable paths.
 
 On this workspace, the existing system pytest temporary directory is owned by a different execution account. If plain `pytest` reports access denied during fixture setup, use a fresh local test directory:
 
-```powershell
-New-Item -ItemType Directory -Path '.pytest_runs' -Force | Out-Null
-$testRun = Join-Path '.pytest_runs' ([guid]::NewGuid().ToString('N'))
-..\.venv\Scripts\python.exe -m pytest -q --basetemp $testRun
+```bat
+if not exist .pytest_runs mkdir .pytest_runs
+set "PYTEST_DEBUG_TEMPROOT=%CD%\.pytest_runs"
+..\.venv\Scripts\python.exe -m pytest -q
 ```
 
-```powershell
-# Validate a clearly labeled synthetic fixture; no extraction and no UI writes.
+```bat
+REM Validate a clearly labeled synthetic fixture; no extraction and no UI writes.
 ..\.venv\Scripts\fakturama-cash.exe validate-json tests/fixtures/synthetic_order.json
 
-# Capture the live window's accessibility tree and screenshot; read-only.
+REM Capture the live window's accessibility tree and screenshot; read-only.
 ..\.venv\Scripts\fakturama-cash.exe diagnose --out evidence/private/diagnostics
 
-# Raw OCR text and word bounds. NOT structured/validated extraction.
+REM Raw OCR text and word bounds. NOT structured/validated extraction.
 ..\.venv\Scripts\fakturama-cash.exe ocr "C:\path\order.png" --out evidence/private/ocr
 
-# List missing mappings without connecting to the desktop.
+REM List missing mappings without connecting to the desktop.
 ..\.venv\Scripts\fakturama-cash.exe check-profile config/observed.partial.json
 ```
 
 ### Image extraction and validation
 
-The real structured extraction path sends the single image to an **Ollama-compatible `/api/chat` vision endpoint**, requests the Pydantic schema, preserves the response, and validates all required fields and arithmetic. It does not substitute the synthetic fixture. Configure a vision-capable model that is actually installed on your service:
+The structured extraction path makes two sequential requests to an **Ollama-compatible `/api/chat` vision endpoint**:
 
-```powershell
-$env:FAKTURAMA_VISION_URL = 'http://localhost:11434/api/chat'
-$env:FAKTURAMA_VISION_MODEL = '<your-installed-vision-model>'
+1. Windows OCR locates the ITEMS section, all eight column headings and NET TOTAL. The original-resolution table crop is sent with an item-only schema.
+2. The full image is sent with a non-item schema for customer, addresses, payment, order header and printed document totals.
+3. Both validated sections are combined and the existing line/VAT/document arithmetic checks run unchanged.
+
+Each pass preserves its raw response. Unclear boundaries, model uncertainty, invalid fields or mismatched arithmetic stop the run; there is no fallback to the old full-page item extraction. No synthetic fixture or manually corrected values enter the runtime data. This supports the assignment's single-table layout, not arbitrary invoices.
+
+Configure a vision-capable model installed on your service:
+
+```bat
+set "FAKTURAMA_VISION_URL=http://localhost:11434/api/chat"
+set "FAKTURAMA_VISION_MODEL=gemma3:4b"
 ..\.venv\Scripts\fakturama-cash.exe validate "C:\path\order.png"
 ```
 
-This machine had no configured model and no service responding on port 11434. Service provisioning and a successful real-model extraction remain prerequisites. `.env.example` documents the variables; the CLI does **not** automatically load `.env`. An optional `FAKTURAMA_VISION_TOKEN` is supplied in the Authorization header, not logged. A remote endpoint receives the entire image; use only an approved service, with HTTPS and appropriate data permission.
+Set these variables in the same CMD session as the command; activating `.venv` does not set them. The two model requests can take several minutes each on CPU, with a 1200-second socket timeout per request. Schema/arithmetic validation cannot prove that names and addresses match the source; inspect the private evidence before using the prototype. `.env.example` documents the variables; the CLI does **not** automatically load `.env`. An optional `FAKTURAMA_VISION_TOKEN` is supplied in the Authorization header, not logged. A remote endpoint receives the entire image; use only an approved service, with HTTPS and appropriate data permission.
 
 The document's full-page **Sales Order Input** image was available and inspected. Its smaller Fakturama screenshots are UI references, not runtime inputs. Raw OCR of the full-page image was attempted; its SKU/percentage errors were not manually patched into runtime data.
 
 ### Full workflow — blocked until calibration is complete
 
-```powershell
+```bat
 ..\.venv\Scripts\fakturama-cash.exe check-profile config/live.json
 ..\.venv\Scripts\fakturama-cash.exe run "C:\path\order.png" --profile config/live.json
 ```
@@ -93,7 +101,7 @@ Add `--quiet` before or after the subcommand to suppress progress and retain the
 previous result/error output format. To keep progress visible while saving the
 final success result in CMD, use `> result.json`; `2> progress.log` also captures
 progress and any error JSON. Existing error details can contain source values, so
-treat failure logs as private. Progress does not extend the 120-second extraction
+treat failure logs as private. Progress does not extend the 1200-second per-request extraction
 socket timeout, retry model/UI actions, fix extraction accuracy, or enable missing
 UI mappings.
 
@@ -101,7 +109,7 @@ UI mappings.
 
 | Location | Responsibility |
 |---|---|
-| `extraction.py`, `windows_ocr.py` | Structured vision extraction; separate raw local OCR diagnostic |
+| `extraction.py`, `table_crop.py`, `windows_ocr.py` | Two-pass vision extraction; OCR-anchored, original-resolution table crop |
 | `models.py`, `normalize.py` | Strict schema, required fields, Decimal/date parsing and reconciliation |
 | `matching.py`, `verification.py` | Exact master-data matching and expected-versus-observed checks |
 | `ui.py`, `config/` | Scoped UIA discovery, bounded observations, profile-driven actions and evidence |
@@ -159,7 +167,7 @@ Any uncertain mutation or failed verification also goes to **Stop and report rev
 
 Run artifacts are private and ignored by Git:
 
-- `runs/<image-sha256>/extractions/<attempt-id>/`: original model response, extracted text, normalized JSON and extraction failure report.
+- `runs/<image-sha256>/extractions/<attempt-id>/`: `table/` contains OCR, crop, request, raw response and normalized items; `fields/` contains the non-item request/response. Top-level `normalized.json` is the combined order (saved before reconciliation), not proof of success. Failure reports remain at the attempt root.
 - `runs/<image-sha256>/checkpoint.json`: write intentions/outcomes, verified stage and known document identifiers.
 - `runs/<image-sha256>/events.jsonl`: timestamped workflow events; screenshots/UIA trees at important transitions and failures.
 - `evidence/private/diagnostics/`: actual read-only Fakturama capture, not a successful business execution.
@@ -167,7 +175,7 @@ Run artifacts are private and ignored by Git:
 
 After a timeout, do not rerun, delete the checkpoint, or repeat Save. Inspect Fakturama's Documents list, the known numbers, source company/reference/date/total and linked documents. With a calibrated profile, this command is read-only:
 
-```powershell
+```bat
 ..\.venv\Scripts\fakturama-cash.exe reconcile "runs\<hash>\checkpoint.json" --profile config/live.json
 ```
 
@@ -178,7 +186,7 @@ See [requirement coverage](../documents/implementation/requirements.md) and [act
 ## If I had 3 more hours
 
 1. **90 minutes:** finish the existing-master live path in a disposable workspace, especially complete result-grid enumeration, fresh visual grounding, editor scoping and separate delivery addresses. Verify Order-to-Invoice linkage and persisted payment fields.
-2. **45 minutes:** connect an available vision model, validate the actual image field-by-field, and test a second layout and unclear text. Keep uncertainty a review condition.
+2. **45 minutes:** evaluate the integrated two-pass extractor field-by-field on more images, especially addresses and unclear text. Keep uncertainty a review condition.
 3. **45 minutes:** run missing-payment/VAT/Product/Debtor and interrupted-save cases live; capture a short annotated demonstration and revise this checklist to reflect only observed results.
 
 These are priorities, not a promise that all integration gaps fit within three hours. Reliable live execution comes before adding more features.

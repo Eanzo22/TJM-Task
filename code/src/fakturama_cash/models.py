@@ -73,19 +73,23 @@ class Line(Model):
         return money(self.unit_net * (1 + self.vat_percent / 100))
 
 
-class OrderInput(Model):
+class OrderFields(Model):
+    """Non-item fields extracted separately so full-page prices cannot leak in."""
     order_date: Day
     external_reference: Nonempty
     currency: Literal["EUR"]
     debtor: Debtor
     payment: Payment
-    items: list[Line] = Field(min_length=1)
     order_discount_percent: Number | None = Field(default=None, ge=0, le=100)
     shipping_net: Number | None = Field(default=None, ge=0)
     source_net: Number = Field(ge=0)
     source_vat: Number = Field(ge=0)
     source_total: Number = Field(ge=0)
     extraction_issues: list[str] = Field(default_factory=list)
+
+
+class OrderInput(OrderFields):
+    items: list[Line] = Field(min_length=1)
 
     def reconcile(self):
         from .errors import ReviewRequired
