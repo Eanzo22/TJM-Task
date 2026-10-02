@@ -5,10 +5,13 @@
   "observation": "2026-10-02 mapping-order capture. User confirmed live header reads; writes still await controlled live verification. Requires exactly one visible New Order pane. Dynamic SWT IDs and screenshot coordinates are not selectors.",
   "actions": {
     "fill_order_header": [
-      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "", "to_right_of": "Date"}], "operation": "set", "value": "${input.order_date}", "format": "date_english"},
+      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "", "to_right_of": "Date"}], "operation": "set", "value": "${input.order_date}", "format": "date_english", "commit_path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "Cust.Ref."}]},
       {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "Cust.Ref."}], "operation": "set", "value": "${input.external_reference}"},
       {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "ComboBox", "title": ""}], "operation": "select", "value": "Net"},
       {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "ComboBox", "title": "VAT"}], "operation": "select", "value": "With VAT"}
+    ],
+    "fill_order_date": [
+      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "", "to_right_of": "Date"}], "operation": "set", "value": "${input.order_date}", "format": "date_english", "commit_path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "Cust.Ref."}]}
     ]
   },
   "queries": {

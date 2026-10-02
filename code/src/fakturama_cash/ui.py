@@ -326,6 +326,36 @@ class UIAAdapter:
             raise ReviewRequired("Navigation pattern unavailable or failed", stage="UI navigation",
                                  observed=str(exc), next_action="Calibrate this tab/panel using live evidence.") from exc
 
+    def _set_date(self, step, context, value):
+        control = self.find(step["path"], context)
+        commit_path = step.get("commit_path")
+        if (control.element_info.control_type != "Edit" or not commit_path
+                or commit_path == step["path"]):
+            raise ReviewRequired("Date entry needs an Edit and a separate observed focus target", stage="date entry")
+        commit = self.find(commit_path, context)
+        if not control.is_enabled() or not commit.is_enabled():
+            raise ReviewRequired("Date entry or its focus target is disabled", stage="date entry")
+        # Whole-value UIA replacement was ignored in live tests even with focus.
+        # Use the date widget's segment keyboard handling, not SetValue or paste.
+        commit.set_focus()
+        self._wait_for(commit.has_keyboard_focus, "Date focus target did not receive focus")
+        control.set_focus()
+        self._wait_for(control.has_keyboard_focus, "Date field did not receive focus")
+        from .date_entry import enter_date
+        enter_date(control, day(value), timeout=self.timeout,
+                   focus_is_safe=lambda: control.has_keyboard_focus() and _capture_state(self.root())[0])
+        # Blur to the known reference control, not Enter (which may invoke a
+        # default button). Verify the retained date before any later field write.
+        commit = self.find(commit_path, context)
+        commit.set_focus()
+        self._wait_for(commit.has_keyboard_focus, "Could not leave the date field")
+        observed = wait_stable(lambda: self._scalar({"path": step["path"], "transform": "date"}, context),
+                               timeout=self.timeout)
+        expected = day(value).isoformat()
+        if observed != expected:
+            raise ReviewRequired("Date was not retained after leaving the field", stage="date entry",
+                                 expected=expected, observed=observed)
+
     def act(self, name, context):
         recipe = self.profile.get("actions", {}).get(name)
         if not recipe:
@@ -354,7 +384,10 @@ class UIAAdapter:
             elif operation == "select":
                 control.select() if value is None else control.select(str(value))
             elif operation == "set":
-                control.set_edit_text(str(value))
+                if step.get("format") == "date_english":
+                    self._set_date(step, context, value)
+                else:
+                    control.set_edit_text(str(value))
             elif operation == "toggle":
                 if not isinstance(value, bool):
                     raise ReviewRequired("Checkbox target must be boolean", stage=name)

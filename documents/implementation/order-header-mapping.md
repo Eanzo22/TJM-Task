@@ -1,7 +1,10 @@
 # First mapping group: Order header
 
-Status: header read-back confirmed by the user's live inspection on 2026-10-02;
-controlled write command implemented, live write verification still pending.
+Status: header read-back confirmed by the user's live inspection on 2026-10-02.
+The first live write test changed reference/modes but retained the old date.
+The follow-up live test also rejected whole-text replacement despite verified
+focus. Segmented keyboard entry now has regression coverage (191 tests passed,
+2026-10-03); successful live date verification is still pending.
 Based on the user's `code/evidence/private/mapping-order/` screenshot and UI tree.
 The user's inspection returned PO000002, 2026-10-02, an empty reference, Gross,
 and With VAT. The computer-use helper could not initialize in the assistant's
@@ -14,7 +17,7 @@ All paths are scoped to one visible `Pane` named `New Order`.
 | Field | How it is located | Handling |
 | --- | --- | --- |
 | Proposed number | Unnamed Edit immediately to the right of `No.` | Read only; no write recipe |
-| Date | Unnamed Edit immediately to the right of `Date` | Read as ISO; draft write uses the observed English named-month format |
+| Date | Unnamed Edit immediately to the right of `Date` | Verify selected segment, type numeric keys, blur to reference and verify retained ISO date |
 | Customer reference | Edit named `Cust.Ref.` | Read/write source reference |
 | Price mode | Unique unnamed ComboBox inside the Order pane | Read; draft selection is Net |
 | VAT mode | ComboBox named `VAT` inside the Order pane | Read; draft selection is With VAT |
@@ -83,3 +86,48 @@ calibrated. The current profile does not claim either selector mapping is comple
 
 The next requested evidence is the output of `test-order-header`. Once its live
 read-back matches, continue with the debtor selector and then the product selector.
+
+## Date-only repair after the first live test
+
+The recorded failure showed the date stayed at 2026-10-02 while the reference,
+Net mode and With VAT were correct. Inspection of the installed DocumentEditor
+class confirmed it references Nebula CDateTime, not a plain date text box.
+The installed pywinauto `set_edit_text` implementation calls UIA SetValue without
+focusing. The upstream [CDateTime source](https://github.com/EclipseNebula/nebula/blob/master/widgets/cdatetime/org.eclipse.nebula.widgets.cdatetime/src/org/eclipse/nebula/widgets/cdatetime/CDateTime.java)
+rejects replacement when no segment is active; its focus event activates a segment.
+The initial focus-based hypothesis was insufficient: the second live test still
+read the old date. Both failed attempts are now modeled in the tests; whole-value
+assignment is no longer used for this control.
+
+The date recipe now requires a `commit_path` pointing to the observed customer
+reference field. It moves focus there and back to the date, then uses the widget's
+documented [segment keyboard behavior](https://eclipse.dev/nebula/widgets/cdatetime/cdatetimeb2c1.html?page=operation):
+
+- Read the English date text and accessible selection offsets to identify the
+  current month/day/year segment. Unsupported formats/patterns stop before typing.
+- Move between segments using bounded right-arrow navigation, checking selection
+  after each move. Verify field focus and foreground window before/after each key.
+- Set day 1 first when necessary, then year, month and final day. This avoids invalid
+  intermediate dates such as February 31 or February 29 in a non-leap year.
+- Type two digits (four for year); the widget commits and advances automatically.
+  Verify each intermediate date and finally the retained date after leaving the field.
+
+There is no Enter, Save, clipboard paste, automatic refocus after losing focus, or
+whole-value SetValue. A failure stops before subsequent header edits. An intentional
+intermediate date may remain after a partial failure; inspect it rather than retrying
+blindly. These keyboard interactions still require live verification.
+
+For the already partially filled unsaved PO000002, use CMD:
+
+```bat
+..\.venv\Scripts\fakturama-cash.exe test-order-header --expected-number PO000002 --date 2026-07-14 --reference WEB-2026-0714-A17 --date-only
+```
+
+The explicit date-only option requires the other four fields to match before
+writing. It records new before/after evidence, runs only `fill_order_date`, and
+checks all five fields afterward. This is not a generic retry/resume facility.
+The usual test still requires an empty reference and initial Gross/With VAT modes.
+The second failure's recorded initial state was empty reference/Gross; it stopped
+before those fields were written. For that state, use the normal command without
+`--date-only`, after verifying the visible header. Do not change fields simply to
+force the date-only guard to pass.

@@ -8,9 +8,11 @@ The existing Part 1 Word design documents are preserved unchanged. The assignmen
 
 Latest verification (2026-10-02): the actual source image passed three-pass
 extraction and manual field review, including the corrected delivery street and
-source customer ID. The latest automated suite passed 173 tests. The user also
-confirmed live Order-header reading. The controlled header-write test still needs
-live verification; the assistant's desktop helper could not initialize. Full UI
+source customer ID. The latest automated suite passed 191 tests (2026-10-03). The user
+confirmed live Order-header reading; the first write test changed the reference and
+modes but did not retain the date. A second test confirmed focus plus whole-text
+replacement still failed. Segmented keyboard date entry now replaces that approach
+and awaits live verification; the assistant's desktop helper could not initialize. Full UI
 calibration and an actual transaction remain unfinished. See
 [remaining issues and test steps](../documents/implementation/remaining-issues-and-test-plan.md).
 
@@ -225,6 +227,25 @@ It saves before/after evidence under `evidence/private/order-header-test/` and s
 success/failure tones (unless `--quiet`). If it stops, inspect the editor and evidence:
 partial unsaved edits may remain. There is no automatic rollback or retry. A successful
 header test does **not** mean the full workflow is calibrated. No Ollama call is made.
+
+If the first header test filled the reference/modes but left the date unchanged,
+leave that same unsaved Order open and explicitly test **only the date**:
+
+```bat
+..\.venv\Scripts\fakturama-cash.exe test-order-header --expected-number PO000002 --date 2026-07-14 --reference WEB-2026-0714-A17 --date-only
+```
+
+This requires the number/reference to match and the modes to already be Net/With VAT.
+It does not rewrite those fields. Date entry now verifies the selected month/day/year
+segment and types numeric keys, checking focus and intermediate values. It then
+moves focus to the reference without changing it and verifies the retained date.
+An unreadable selection or unexpected format stops rather than guessing keystrokes.
+Both modes stop if date verification fails; there is no Save, automatic retry,
+or full-workflow resume. Success is `verified_unsaved_order_header`; do not save the
+test Order. The keyboard-based fix has regression coverage but awaits a live result.
+If the failed attempt began with an empty reference/Gross and stopped at date entry,
+the other fields have not been filled: inspect the header and use the normal test
+without `--date-only` instead. Do not clear or overwrite fields just to bypass a guard.
 
 On this workspace, the existing system pytest temporary directory is owned by a different execution account. If plain `pytest` reports access denied during fixture setup, use a fresh local test directory:
 

@@ -43,7 +43,10 @@ def parser():
                        help="Fill and verify four header fields on an open test Order; never saves")
     p.add_argument("--expected-number", required=True, help="Exact proposed number seen in inspect-order")
     p.add_argument("--date", required=True, help="Test order date in YYYY-MM-DD format")
-    p.add_argument("--reference", required=True, help="Test customer reference; existing field must be empty")
+    p.add_argument("--reference", required=True,
+                   help="Test reference; existing field must be empty, or already match when using --date-only")
+    p.add_argument("--date-only", action="store_true",
+                   help="Change only the date on a partially filled unsaved Order; all other header values must match")
     p.add_argument("--profile", type=Path, default=Path("config/order-header.partial.json"))
     p.add_argument("--out", type=Path, default=Path("evidence/private/order-header-test"))
     p = sub.add_parser("ocr", parents=[progress_options], help="Capture raw Windows OCR; does not produce an approved order or modify Fakturama")
@@ -119,7 +122,7 @@ def execute(args, progress):
             error_path = directory / "review-required.json"
             result = fill_and_verify_header(UIAAdapter(profile), expected_number=args.expected_number,
                                            order_date=args.date, reference=args.reference,
-                                           directory=directory, progress=progress.update)
+                                           directory=directory, progress=progress.update, date_only=args.date_only)
             progress.finish("Header verified; no Save action sent; full UI profile remains incomplete")
             print(json.dumps(result))
             return 0
