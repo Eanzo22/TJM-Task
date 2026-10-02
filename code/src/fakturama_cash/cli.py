@@ -96,6 +96,11 @@ def execute(args, progress):
             print(json.dumps({"status": "inspection_only", "rows": matched,
                               "checkpoint": checkpoint, "safe_next_action": "Review persisted data. Automatic resume is not implemented."}, default=str))
             return 2
+        if args.command == "run":
+            # Reject incomplete configuration before a slow model request. Use a
+            # non-connected adapter here; the workflow rechecks the live UI later.
+            progress.update("Checking UI profile before image extraction (no desktop actions)")
+            UIAAdapter(load_profile(args.profile), desktop=object()).preflight(ACTIONS, QUERIES, connect=False)
         progress.update("Fingerprinting input and preparing private extraction evidence")
         image_hash = fingerprint(args.image)
         # Preserve each extraction attempt, including failed/changed model output.

@@ -1,0 +1,10 @@
+{
+  "source_sha256": "27bc0a7f97eae5a4c71004c5c447924058b5098f9e0b13e3fb085f8b94355257",
+  "crop_box": [
+    0,
+    90,
+    1000,
+    390
+  ],
+  "resized": false
+}

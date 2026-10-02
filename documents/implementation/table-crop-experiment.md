@@ -1,7 +1,8 @@
 # Table-crop extraction experiment
 
-Date: 2026-10-01. Status: successful on the supplied image in one local run;
-not integrated into the production extraction path.
+Date: 2026-10-01. Historical experiment: successful on the supplied image in one
+local run. The original experiment below is preserved; see the integration update
+at the end for the current implementation status.
 
 ## What changed
 
@@ -72,3 +73,47 @@ non-table fields against the source, particularly exact address spelling.
 Combine the independently extracted sections, preserve both raw responses, and
 run the existing complete OrderInput validation and reconciliation. Any uncertainty
 must still stop before UI writes. Do not use the known expected values as runtime data.
+
+## Integration update — 2026-10-02
+
+The shared detector now lives in `code/src/fakturama_cash/table_crop.py`.
+Both the isolated experiment and normal image extraction use it. `validate`
+and the extraction phase of `run` now request cropped items first, check their
+arithmetic, then request non-item fields from the full image. `OrderFields`
+forbids item data, preventing the second response from overwriting item prices.
+The combined OrderInput still uses the existing reconciliation rules.
+Comments explain these boundaries, decimal-string schemas, evidence and safe stops.
+
+The actual integrated `validate` run completed in approximately 7m17s with
+`validated_image`, two items, and gross total 678.30. All eight fields in both
+item rows match the original source. The regression suite passed 98 tests.
+Evidence: `code/runs/dccd74e337dfe5a5677366c004c98742d18cdb2444c5fdc90aba38ecc239ba67/extractions/fe20610d37a24449b5c3ff1310e63d8d/`.
+It preserves separate `table/` and `fields/` requests/responses and the combined
+top-level normalized JSON. No Fakturama data was changed.
+
+Important: schema/arithmetic success is NOT a guarantee of accurate source text.
+Manual review found the delivery street still reads `Beusselsstrasse 44` instead
+of `Beusselstrasse 44`, and the optional source customer ID was omitted (null).
+Neither was manually patched into runtime data. The address accuracy issue must
+be resolved before using the extracted data in a live transaction.
+
+`check-profile config/observed.partial.json` still stops at UI preflight with
+missing action/query mappings. There has been no successful live Order-to-Invoice
+cycle. Keep the known text errors and incomplete UI calibration separate from
+the now-successful item extraction fix.
+
+## Follow-up: address accuracy fixed for the supplied image
+
+The later three-pass extractor uses native-resolution item and address crops,
+then a separate non-item/non-address request. Crop-only address reading still
+made the spelling error, so the address request now also receives fresh raw OCR
+lines as untrusted source evidence. Model text must match those ordered lines;
+disagreements stop without auto-correction. This is a consistency check, not
+independent reader agreement. A visible CUSTOMER ID is also checked against OCR.
+
+The final live image validation on 2026-10-02 passed in 5m16s. Delivery street
+`Beusselstrasse 44` and source ID `CUST-1007` were correct, along with the other
+source fields and 678.30 total. Evidence attempt: `eb1a48f13ac445f7896186ddd63d11b2`.
+All 116 tests passed. UI calibration remains unfinished because the desktop
+inspection helper could not initialize; no live transaction was attempted.
+See [current issues and test steps](remaining-issues-and-test-plan.md).

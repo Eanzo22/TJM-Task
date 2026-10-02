@@ -68,3 +68,15 @@ def test_default_error_has_stop_message_and_final_json(tmp_path, capsys):
     assert "STOPPED at UI preflight" in output.err
     assert json.loads(output.err.splitlines()[-1])["status"] == "review_required"
     assert "completeness check passed" not in output.err
+
+
+def test_run_checks_profile_before_image_or_model(tmp_path, monkeypatch, capsys):
+    profile = tmp_path / "partial.json"
+    profile.write_text('{"calibrated": false}', encoding="utf-8")
+    def forbidden(*args, **kwargs):
+        pytest.fail("An incomplete profile must stop before extraction")
+    monkeypatch.setattr("fakturama_cash.cli.extract", forbidden)
+    assert main(["run", "does-not-exist.png", "--profile", str(profile),
+                 "--runs", str(tmp_path / "runs"), "--quiet"]) == 2
+    assert json.loads(capsys.readouterr().err)["stage"] == "UI preflight"
+    assert not (tmp_path / "runs").exists()

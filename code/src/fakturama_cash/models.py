@@ -26,17 +26,21 @@ class Address(Model):
     district: str | None = None
 
 
-class Debtor(Model):
+class DebtorContact(Model):
+    """Contact fields only; addresses have their own focused extraction pass."""
     company: Nonempty
     first_name: Nonempty
     last_name: Nonempty
     alias: Nonempty
-    billing: Address
-    delivery: Address
     email: Nonempty
     telephone: Nonempty
     salutation: str | None = None
     source_customer_id: str | None = None
+
+
+class Debtor(DebtorContact):
+    billing: Address
+    delivery: Address
 
 
 class Payment(Model):

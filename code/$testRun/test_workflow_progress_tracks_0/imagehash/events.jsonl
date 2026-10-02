@@ -1,0 +1,17 @@
+{"time": "2026-10-02T07:54:42.984274+00:00", "event": "mutation_intent", "action": "open_order"}
+{"time": "2026-10-02T07:54:42.995276+00:00", "event": "mutation_intent", "action": "fill_order_header"}
+{"time": "2026-10-02T07:54:43.006272+00:00", "event": "mutation_intent", "action": "select_debtor"}
+{"time": "2026-10-02T07:54:43.012273+00:00", "event": "verified", "stage": "debtor_selected"}
+{"time": "2026-10-02T07:54:43.024287+00:00", "event": "mutation_intent", "action": "select_product:0"}
+{"time": "2026-10-02T07:54:43.042811+00:00", "event": "mutation_intent", "action": "fill_line:0"}
+{"time": "2026-10-02T07:54:43.049812+00:00", "event": "verified", "stage": "line_1"}
+{"time": "2026-10-02T07:54:43.059813+00:00", "event": "mutation_intent", "action": "select_product:1"}
+{"time": "2026-10-02T07:54:43.070811+00:00", "event": "mutation_intent", "action": "fill_line:1"}
+{"time": "2026-10-02T07:54:43.076811+00:00", "event": "verified", "stage": "line_2"}
+{"time": "2026-10-02T07:54:43.087812+00:00", "event": "mutation_intent", "action": "fill_order_totals"}
+{"time": "2026-10-02T07:54:43.102812+00:00", "event": "mutation_intent", "action": "save_order"}
+{"time": "2026-10-02T07:54:43.108812+00:00", "event": "verified", "stage": "saved_order"}
+{"time": "2026-10-02T07:54:43.122828+00:00", "event": "mutation_intent", "action": "create_linked_invoice"}
+{"time": "2026-10-02T07:54:43.133351+00:00", "event": "mutation_intent", "action": "fill_invoice_payment"}
+{"time": "2026-10-02T07:54:43.161350+00:00", "event": "mutation_intent", "action": "save_invoice"}
+{"time": "2026-10-02T07:54:43.170351+00:00", "event": "verified", "stage": "complete"}

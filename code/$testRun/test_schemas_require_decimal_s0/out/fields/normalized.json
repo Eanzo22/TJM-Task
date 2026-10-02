@@ -1,0 +1,46 @@
+{
+  "order_date": "2026-07-14",
+  "external_reference": "SYNTHETIC-TEST-001",
+  "currency": "EUR",
+  "debtor": {
+    "company": "Synthetic Office GmbH",
+    "first_name": "Alex",
+    "last_name": "Example",
+    "alias": "SYNTHETIC-OFFICE",
+    "billing": {
+      "name": "Synthetic Office GmbH",
+      "street": "Example Street 10",
+      "zip": "10117",
+      "city": "Berlin",
+      "country": "Germany",
+      "additional_name": null,
+      "specification": null,
+      "district": null
+    },
+    "delivery": {
+      "name": "Synthetic Warehouse",
+      "street": "Warehouse Street 20",
+      "zip": "10553",
+      "city": "Berlin",
+      "country": "Germany",
+      "additional_name": null,
+      "specification": null,
+      "district": null
+    },
+    "email": "alex@example.test",
+    "telephone": "+49 30 0000 0000",
+    "salutation": null,
+    "source_customer_id": null
+  },
+  "payment": {
+    "method": "Bank Transfer",
+    "status": "PAID",
+    "date": "2026-07-18"
+  },
+  "order_discount_percent": null,
+  "shipping_net": null,
+  "source_net": "570.00",
+  "source_vat": "108.30",
+  "source_total": "678.30",
+  "extraction_issues": []
+}

@@ -2,9 +2,15 @@
 
 A guarded Python prototype for reading an order image and creating an Order followed by its linked Invoice through Fakturama's Windows UI.
 
-**Status: not yet a working live end-to-end automation.** The business workflow and safety checks are implemented and tested with a fake UI. Live accessibility discovery and raw Windows OCR succeeded. Local `gemma3:4b` is available. Image validation now uses cropped-table and non-item extraction passes; the live UI profile remains incomplete. `run` deliberately stops rather than using guessed selectors or business values.
+**Status: not yet a working live end-to-end automation.** The business workflow and safety checks are implemented and tested with a fake UI. Live accessibility discovery and raw Windows OCR succeeded. Local `gemma3:4b` is available. Image validation now uses separate item, address and non-item extraction passes; the live UI profile remains incomplete. `run` deliberately stops rather than using guessed selectors or business values.
 
 The existing Part 1 Word design documents are preserved unchanged. The assignment remains the authoritative specification; the deviations and unfinished work below must be disclosed with this submission.
+
+Latest verification (2026-10-02): the actual source image passed three-pass
+extraction and manual field review, including the corrected delivery street and
+source customer ID. All 116 tests passed. Desktop inspection is currently blocked
+by a helper initialization failure; live UI calibration and an actual transaction
+remain unfinished. See [remaining issues and test steps](../documents/implementation/remaining-issues-and-test-plan.md).
 
 ## Setup
 
@@ -49,13 +55,14 @@ REM List missing mappings without connecting to the desktop.
 
 ### Image extraction and validation
 
-The structured extraction path makes two sequential requests to an **Ollama-compatible `/api/chat` vision endpoint**:
+The structured extraction path makes three sequential requests to an **Ollama-compatible `/api/chat` vision endpoint**:
 
 1. Windows OCR locates the ITEMS section, all eight column headings and NET TOTAL. The original-resolution table crop is sent with an item-only schema.
-2. The full image is sent with a non-item schema for customer, addresses, payment, order header and printed document totals.
-3. Both validated sections are combined and the existing line/VAT/document arithmetic checks run unchanged.
+2. A focused billing/delivery crop and its raw OCR lines are sent with an address-only schema. The model is asked to verify those characters against the image. Returned text must match the OCR lines in the correct address column; disagreement stops instead of silently correcting values. This is OCR-assisted extraction, not independent agreement between two readers.
+3. The full image is sent for contact details, payment, order header and printed document totals, excluding items and addresses. A visible CUSTOMER ID must agree with OCR rather than disappear into an optional null.
+4. The three sections are combined and the existing line/VAT/document arithmetic checks run unchanged.
 
-Each pass preserves its raw response. Unclear boundaries, model uncertainty, invalid fields or mismatched arithmetic stop the run; there is no fallback to the old full-page item extraction. No synthetic fixture or manually corrected values enter the runtime data. This supports the assignment's single-table layout, not arbitrary invoices.
+Each pass preserves its raw response. The address detector requires the assignment's side-by-side BILLING ADDRESS / DELIVERY ADDRESS blocks above PAYMENT. Unclear boundaries, model uncertainty, invalid fields or mismatched arithmetic stop the run; there is no fallback to the old full-page item extraction. No synthetic fixture or manually corrected values enter the runtime data. This supports the assignment's single-table layout, not arbitrary invoices.
 
 Configure a vision-capable model installed on your service:
 
@@ -65,7 +72,7 @@ set "FAKTURAMA_VISION_MODEL=gemma3:4b"
 ..\.venv\Scripts\fakturama-cash.exe validate "C:\path\order.png"
 ```
 
-Set these variables in the same CMD session as the command; activating `.venv` does not set them. The two model requests can take several minutes each on CPU, with a 1200-second socket timeout per request. Schema/arithmetic validation cannot prove that names and addresses match the source; inspect the private evidence before using the prototype. `.env.example` documents the variables; the CLI does **not** automatically load `.env`. An optional `FAKTURAMA_VISION_TOKEN` is supplied in the Authorization header, not logged. A remote endpoint receives the entire image; use only an approved service, with HTTPS and appropriate data permission.
+Set these variables in the same CMD session as the command; activating `.venv` does not set them. The three model requests can take several minutes each on CPU, with a 1200-second socket timeout per request. OCR/model agreement and arithmetic checks reduce known errors but do not prove every character correct: both readers can agree on a mistake. Inspect the private evidence before using the prototype. `.env.example` documents the variables; the CLI does **not** automatically load `.env`. An optional `FAKTURAMA_VISION_TOKEN` is supplied in the Authorization header, not logged. A remote endpoint receives the entire image; use only an approved service, with HTTPS and appropriate data permission.
 
 The document's full-page **Sales Order Input** image was available and inspected. Its smaller Fakturama screenshots are UI references, not runtime inputs. Raw OCR of the full-page image was attempted; its SKU/percentage errors were not manually patched into runtime data.
 
@@ -76,7 +83,7 @@ The document's full-page **Sales Order Input** image was available and inspected
 ..\.venv\Scripts\fakturama-cash.exe run "C:\path\order.png" --profile config/live.json
 ```
 
-`config/live.json` is intentionally not supplied. Do not make the partial profile runnable merely by changing `calibrated` to true. Complete and verify all action/query mappings first; see [UI calibration](../documents/implementation/ui-profile.md).
+`run` now checks UI profile completeness before any image/model work. `config/live.json` is intentionally not supplied. Do not make the partial profile runnable merely by changing `calibrated` to true. Complete and verify all action/query mappings first; see [UI calibration](../documents/implementation/ui-profile.md).
 
 Exit code 0 means the command's reported operation completed; 2 means review is required. A successful `diagnose`, raw `ocr`, or synthetic validation is **not** a successful Order/Invoice run. Only `run` can report `complete`, after persisted-state verification.
 
@@ -109,7 +116,7 @@ UI mappings.
 
 | Location | Responsibility |
 |---|---|
-| `extraction.py`, `table_crop.py`, `windows_ocr.py` | Two-pass vision extraction; OCR-anchored, original-resolution table crop |
+| `extraction.py`, `table_crop.py`, `address_crop.py`, `windows_ocr.py` | Three-pass vision extraction; native-resolution crops; exact address/source-ID agreement checks |
 | `models.py`, `normalize.py` | Strict schema, required fields, Decimal/date parsing and reconciliation |
 | `matching.py`, `verification.py` | Exact master-data matching and expected-versus-observed checks |
 | `ui.py`, `config/` | Scoped UIA discovery, bounded observations, profile-driven actions and evidence |
@@ -167,7 +174,7 @@ Any uncertain mutation or failed verification also goes to **Stop and report rev
 
 Run artifacts are private and ignored by Git:
 
-- `runs/<image-sha256>/extractions/<attempt-id>/`: `table/` contains OCR, crop, request, raw response and normalized items; `fields/` contains the non-item request/response. Top-level `normalized.json` is the combined order (saved before reconciliation), not proof of success. Failure reports remain at the attempt root.
+- `runs/<image-sha256>/extractions/<attempt-id>/`: `table/` contains OCR, crop, request, raw response and normalized items; `addresses/` contains the address crop, OCR observations and model response; `fields/` contains the non-item request/response. Top-level `normalized.json` is the combined order (saved before reconciliation), not proof of success. Failure reports remain at the attempt root.
 - `runs/<image-sha256>/checkpoint.json`: write intentions/outcomes, verified stage and known document identifiers.
 - `runs/<image-sha256>/events.jsonl`: timestamped workflow events; screenshots/UIA trees at important transitions and failures.
 - `evidence/private/diagnostics/`: actual read-only Fakturama capture, not a successful business execution.
@@ -186,7 +193,7 @@ See [requirement coverage](../documents/implementation/requirements.md) and [act
 ## If I had 3 more hours
 
 1. **90 minutes:** finish the existing-master live path in a disposable workspace, especially complete result-grid enumeration, fresh visual grounding, editor scoping and separate delivery addresses. Verify Order-to-Invoice linkage and persisted payment fields.
-2. **45 minutes:** evaluate the integrated two-pass extractor field-by-field on more images, especially addresses and unclear text. Keep uncertainty a review condition.
+2. **45 minutes:** evaluate the integrated three-pass extractor field-by-field on more images, especially addresses and unclear text. Keep uncertainty a review condition.
 3. **45 minutes:** run missing-payment/VAT/Product/Debtor and interrupted-save cases live; capture a short annotated demonstration and revise this checklist to reflect only observed results.
 
 These are priorities, not a promise that all integration gaps fit within three hours. Reliable live execution comes before adding more features.

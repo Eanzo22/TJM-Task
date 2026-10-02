@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "sku": "TEST-CHAIR",
+      "description": "Synthetic Chair",
+      "quantity": "2",
+      "unit_net": "250.00",
+      "vat_percent": "19",
+      "discount_percent": "10",
+      "source_net": "450.00",
+      "unit": null
+    },
+    {
+      "sku": "TEST-MAT",
+      "description": "Synthetic Mat",
+      "quantity": "3",
+      "unit_net": "40.00",
+      "vat_percent": "19",
+      "discount_percent": "0",
+      "source_net": "120.00",
+      "unit": null
+    }
+  ],
+  "extraction_issues": []
+}

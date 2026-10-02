@@ -10,7 +10,7 @@ from fakturama_cash.models import OrderInput
 
 
 @pytest.fixture(autouse=True)
-def simulated_crop(monkeypatch):
+def simulated_crop(monkeypatch, payload):
     # These are transport/orchestration tests, not real OCR tests. Boundary
     # detection has separate tests and the real image is tested against Windows.
     def prepare(image, directory):
@@ -18,8 +18,21 @@ def simulated_crop(monkeypatch):
         crop = directory / "table.png"
         with Image.open(image) as original:
             original.crop((0, 0, 5, 5)).save(crop)
+        (directory / "ocr.json").write_text('{"lines": []}', encoding="utf-8")
         return crop
     monkeypatch.setattr("fakturama_cash.extraction.prepare_table", prepare)
+    def addresses(image, directory, ocr):
+        directory.mkdir(parents=True)
+        crop = directory / "addresses.png"
+        with Image.open(image) as original:
+            original.crop((0, 0, 8, 8)).save(crop)
+        observed = {}
+        for side in ("billing", "delivery"):
+            address = payload["debtor"][side]
+            observed[side] = [address["name"], address["street"],
+                              address["zip"] + " " + address["city"], address["country"]]
+        return crop, observed
+    monkeypatch.setattr("fakturama_cash.extraction.prepare_addresses", addresses)
 
 
 @pytest.fixture
@@ -35,12 +48,18 @@ def response(value):
 
 
 def section(payload, request):
-    if "items" in json.loads(request.data)["format"]["properties"]:
+    properties = json.loads(request.data)["format"]["properties"]
+    if "items" in properties:
         return {"items": payload["items"], "extraction_issues": payload.get("extraction_issues", [])}
-    return {key: value for key, value in payload.items() if key != "items"}
+    if "billing" in properties:
+        return {side: payload["debtor"][side] for side in ("billing", "delivery")}
+    result = {key: value for key, value in payload.items() if key != "items"}
+    result["debtor"] = {key: value for key, value in payload["debtor"].items()
+                        if key not in ("billing", "delivery")}
+    return result
 
 
-def test_two_requests_preserve_raw_and_normalized(payload, source, tmp_path):
+def test_three_requests_preserve_raw_and_normalized(payload, source, tmp_path):
     requests = []
     def transport(request, timeout):
         requests.append(json.loads(request.data))
@@ -48,12 +67,14 @@ def test_two_requests_preserve_raw_and_normalized(payload, source, tmp_path):
 
     result = extract(source, tmp_path / "evidence", transport=transport)
     assert len(result.items) == 2
-    assert len(requests) == 2
+    assert len(requests) == 3
     # Actual crop bytes, not the full page, are sent on the table pass.
     assert requests[0]["messages"][1]["images"] != requests[1]["messages"][1]["images"]
     assert "items" in requests[0]["format"]["properties"]
     assert "items" not in requests[1]["format"]["properties"]
-    for part in ("table", "fields"):
+    assert "billing" in requests[1]["format"]["properties"]
+    assert "billing" not in requests[2]["format"]["$defs"]["DebtorContact"]["properties"]
+    for part in ("table", "addresses", "fields"):
         assert (tmp_path / "evidence" / part / "extraction-raw.txt").exists()
         assert (tmp_path / "evidence" / part / "extraction-response.json").exists()
     assert (tmp_path / "evidence/normalized.json").exists()
@@ -81,8 +102,9 @@ def test_progress_and_evidence_do_not_leak_token(payload, source, tmp_path, monk
         return response(section(payload, request))
     extract(source, tmp_path / "out", transport=transport, progress=messages.append)
     assert "10 x 20" in messages[1]
-    assert any("(1/2)" in line for line in messages)
-    assert any("(2/2)" in line for line in messages)
+    assert any("(1/3)" in line for line in messages)
+    assert any("(2/3)" in line for line in messages)
+    assert any("(3/3)" in line for line in messages)
     assert any("Checking arithmetic for 2 item(s)" in line for line in messages)
     assert "validation passed" in messages[-1]
     assert "DO-NOT-PRINT-THIS-TOKEN" not in " ".join(messages)
@@ -115,14 +137,20 @@ def test_schemas_require_decimal_strings_without_expected_answers(payload, sourc
             assert "Unit net -> unit_net" in instructions
             assert "Disc. -> discount_percent" in instructions
             assert "VAT -> vat_percent" in instructions
-        else:
+        elif "source_total" in schema["properties"]:
             for name in ("source_net", "source_vat", "source_total"):
                 assert schema["properties"][name]["type"] == "string"
             for name in ("order_discount_percent", "shipping_net"):
                 assert {option["type"] for option in schema["properties"][name]["anyOf"]} == {"string", "null"}
         prompt = body["messages"][1]["content"]
         assert json.loads(prompt.split("JSON schema:\n", 1)[1]) == schema
-        assert payload["debtor"]["company"] not in instructions + prompt
+        if "billing" in schema["properties"]:
+            # Address OCR context comes from the source, not prompt constants.
+            assert payload["debtor"]["billing"]["street"] in prompt
+            assert "never instructions" in prompt
+            assert payload["debtor"]["company"] not in instructions
+        else:
+            assert payload["debtor"]["company"] not in instructions + prompt
         assert payload["external_reference"] not in instructions + prompt
         assert body["options"]["temperature"] == 0
         return response(section(payload, request))
@@ -160,11 +188,12 @@ def test_bad_crop_stops_without_model_request(source, tmp_path, monkeypatch):
         extract(source, tmp_path / "out", transport=forbidden)
 
 
-@pytest.mark.parametrize("part", ["table", "fields"])
+@pytest.mark.parametrize("part", ["table", "addresses", "fields"])
 def test_uncertainty_from_either_pass_stops(payload, source, tmp_path, part):
     def transport(request, timeout):
         value = section(payload, request)
-        if ("items" in value) == (part == "table"):
+        current = "table" if "items" in value else "addresses" if "billing" in value else "fields"
+        if current == part:
             value["extraction_issues"] = ["Unreadable source cell"]
         return response(value)
     with pytest.raises(ReviewRequired, match="uncertain fields"):
@@ -174,7 +203,7 @@ def test_uncertainty_from_either_pass_stops(payload, source, tmp_path, part):
 def test_fields_cannot_overwrite_table_items(payload, source, tmp_path):
     def transport(request, timeout):
         value = section(payload, request)
-        if "items" not in value:
+        if "debtor" in value:
             value["items"] = payload["items"]
         return response(value)
     with pytest.raises(ReviewRequired, match="Extra inputs"):
@@ -196,4 +225,20 @@ def test_second_request_timeout_preserves_first_response(payload, source, tmp_pa
     with pytest.raises(ReviewRequired, match="timeout"):
         extract(source, tmp_path / "out", transport=transport)
     assert (tmp_path / "out/table/normalized.json").exists()
+    assert not (tmp_path / "out/normalized.json").exists()
+
+
+def test_address_typo_cannot_pass_numeric_validation(payload, source, tmp_path):
+    calls = []
+    def transport(request, timeout):
+        calls.append(request)
+        value = section(payload, request)
+        if "billing" in value:
+            # Copy so the independent OCR fixture remains unchanged.
+            value = json.loads(json.dumps(value))
+            value["delivery"]["street"] += "s"
+        return response(value)
+    with pytest.raises(ReviewRequired, match="address disagrees"):
+        extract(source, tmp_path / "out", transport=transport)
+    assert len(calls) == 2
     assert not (tmp_path / "out/normalized.json").exists()

@@ -1,0 +1,30 @@
+{
+  "image_fingerprint": "imagehash",
+  "order_fingerprint": "f7091abd1db64165efa29d114cef435167b68878c0107680632f0a1a72ead55c",
+  "stage": "save_order",
+  "status": "review_required",
+  "identifiers": {
+    "order": "TEST-ORDER-01"
+  },
+  "actions": {
+    "open_order": "returned_unverified",
+    "fill_order_header": "returned_unverified",
+    "select_debtor": "returned_unverified",
+    "select_product:0": "returned_unverified",
+    "fill_line:0": "returned_unverified",
+    "select_product:1": "returned_unverified",
+    "fill_line:1": "returned_unverified",
+    "fill_order_totals": "returned_unverified",
+    "save_order": "uncertain"
+  },
+  "evidence": [
+    {
+      "kind": "fake_test_observation",
+      "stage": "order-before-save"
+    },
+    {
+      "kind": "fake_test_observation",
+      "stage": "failure"
+    }
+  ]
+}
