@@ -1,0 +1,25 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 10,
+  "observation": "2026-10-02 mapping-order capture. User confirmed live header reads; writes still await controlled live verification. Requires exactly one visible New Order pane. Dynamic SWT IDs and screenshot coordinates are not selectors.",
+  "actions": {
+    "fill_order_header": [
+      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "", "to_right_of": "Date"}], "operation": "set", "value": "${input.order_date}", "format": "date_english"},
+      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "Cust.Ref."}], "operation": "set", "value": "${input.external_reference}"},
+      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "ComboBox", "title": ""}], "operation": "select", "value": "Net"},
+      {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "ComboBox", "title": "VAT"}], "operation": "select", "value": "With VAT"}
+    ]
+  },
+  "queries": {
+    "order_header": {
+      "fields": {
+        "no": {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "", "to_right_of": "No."}], "read": "value"},
+        "date": {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "", "to_right_of": "Date"}], "read": "value", "transform": "date"},
+        "reference": {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "Edit", "title": "Cust.Ref."}], "read": "value"},
+        "price_mode": {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "ComboBox", "title": ""}], "read": "value"},
+        "vat_mode": {"path": [{"control_type": "Pane", "title": "New Order"}, {"control_type": "ComboBox", "title": "VAT"}], "read": "value"}
+      }
+    }
+  }
+}

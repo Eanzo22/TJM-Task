@@ -8,6 +8,7 @@ from uuid import uuid4
 from .errors import ReviewRequired
 from .extraction import extract
 from .models import OrderInput
+from .notifications import capture_finished
 from .progress import TerminalProgress
 from .state import Journal, fingerprint, semantic_fingerprint, write_json
 from .ui import UIAAdapter, load_profile
@@ -19,7 +20,7 @@ def parser():
     # SUPPRESS lets --quiet work before or after the subcommand without one
     # parser's default overwriting the explicitly supplied value from the other.
     progress_options.add_argument("--quiet", action="store_true", default=argparse.SUPPRESS,
-                                  help="Suppress progress lines; preserve the final result/error")
+                                  help="Suppress progress lines and capture sounds; preserve the final result/error")
     result = argparse.ArgumentParser(description="Fakturama image-to-cash prototype; local evidence is private",
                                      parents=[progress_options])
     sub = result.add_subparsers(dest="command", required=True)
@@ -34,6 +35,17 @@ def parser():
     p = sub.add_parser("diagnose", parents=[progress_options], help="Read-only capture of the Fakturama UI tree and screenshot")
     p.add_argument("--profile", type=Path, default=Path("config/observed.partial.json"))
     p.add_argument("--out", type=Path, default=Path("evidence/private/diagnostics"))
+    p = sub.add_parser("inspect-order", parents=[progress_options],
+                       help="Read the open New Order header only; does not fill or save it")
+    p.add_argument("--profile", type=Path, default=Path("config/order-header.partial.json"))
+    p.add_argument("--out", type=Path, default=Path("evidence/private/order-header-inspection"))
+    p = sub.add_parser("test-order-header", parents=[progress_options],
+                       help="Fill and verify four header fields on an open test Order; never saves")
+    p.add_argument("--expected-number", required=True, help="Exact proposed number seen in inspect-order")
+    p.add_argument("--date", required=True, help="Test order date in YYYY-MM-DD format")
+    p.add_argument("--reference", required=True, help="Test customer reference; existing field must be empty")
+    p.add_argument("--profile", type=Path, default=Path("config/order-header.partial.json"))
+    p.add_argument("--out", type=Path, default=Path("evidence/private/order-header-test"))
     p = sub.add_parser("ocr", parents=[progress_options], help="Capture raw Windows OCR; does not produce an approved order or modify Fakturama")
     p.add_argument("image", type=Path)
     p.add_argument("--out", type=Path, default=Path("evidence/private/ocr"))
@@ -48,7 +60,12 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     with TerminalProgress(enabled=not getattr(args, "quiet", False)) as progress:
-        return execute(args, progress)
+        result = execute(args, progress)
+    # Notify only after capture/result reporting and heartbeat cleanup finish.
+    # Distinct failure tone means the user need not watch the covered terminal.
+    if args.command in ("diagnose", "test-order-header") and not getattr(args, "quiet", False):
+        capture_finished(success=result == 0)
+    return result
 
 
 def execute(args, progress):
@@ -62,11 +79,49 @@ def execute(args, progress):
             print(json.dumps({"status": "validated_json_only", "items": len(order.items), "total": str(order.source_total)}))
             return 0
         if args.command == "diagnose":
-            progress.update("Connecting to Fakturama and capturing UI tree/screenshot (read-only)")
+            progress.update("Maximizing/activating Fakturama and capturing UI tree/screenshot (no business writes)")
             adapter = UIAAdapter(load_profile(args.profile))
             evidence = adapter.capture(args.out, "fakturama")
             progress.finish("Diagnostic capture complete")
             print(json.dumps(evidence))
+            return 0
+        if args.command == "inspect-order":
+            progress.update("Reading the open New Order header (no filling, clicking or saving)")
+            profile = load_profile(args.profile)
+            spec = profile.get("queries", {}).get("order_header", {})
+            # This narrow diagnostic intentionally accepts an incomplete profile,
+            # but forbids navigation preparation and complex/custom read recipes.
+            if (set(spec) != {"fields"} or set(spec["fields"]) != {"no", "date", "reference", "price_mode", "vat_mode"}
+                    or any(not set(field) <= {"path", "read", "transform"} for field in spec["fields"].values())):
+                raise ReviewRequired("inspect-order requires a read-only five-field header query", stage="UI inspection")
+            adapter = UIAAdapter(profile)
+            header = adapter.read("order_header", {})
+            args.out.mkdir(parents=True, exist_ok=True)
+            evidence = args.out / (uuid4().hex + ".json")
+            write_json(evidence, {"status": "observed_order_header", "header": header,
+                                  "business_writes": False, "live_profile_calibrated": False})
+            progress.finish("Order header read; no fields changed or saved")
+            print(json.dumps({"status": "observed_order_header", "header": header, "evidence": str(evidence)}))
+            return 0
+        if args.command == "test-order-header":
+            from datetime import date
+            from .header_test import fill_and_verify_header, validate_test_profile
+            # Validate inputs and the restricted recipe before connecting to UIA.
+            if (date.fromisoformat(args.date).isoformat() != args.date
+                    or not args.expected_number.strip() or not args.reference.strip()
+                    or any(ord(c) < 32 for c in args.expected_number + args.reference)):
+                raise ReviewRequired("Provide an ISO date, a nonblank number and a plain-text reference",
+                                     stage="header test configuration")
+            profile = load_profile(args.profile)
+            validate_test_profile(profile)
+            directory = args.out / uuid4().hex
+            directory.mkdir(parents=True, exist_ok=True)
+            error_path = directory / "review-required.json"
+            result = fill_and_verify_header(UIAAdapter(profile), expected_number=args.expected_number,
+                                           order_date=args.date, reference=args.reference,
+                                           directory=directory, progress=progress.update)
+            progress.finish("Header verified; no Save action sent; full UI profile remains incomplete")
+            print(json.dumps(result))
             return 0
         if args.command == "ocr":
             progress.update("Running Windows OCR and saving raw observations (no UI writes)")

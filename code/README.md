@@ -31,6 +31,32 @@ The `ocr` extra and Windows' installed English OCR language pack are required fo
 
 No activation is required when using these explicit executable paths.
 
+To verify the first Order-header mapping group without filling or saving anything,
+leave one blank New Order editor open and run:
+
+```bat
+..\.venv\Scripts\fakturama-cash.exe inspect-order
+```
+
+This reads number, date, reference, price mode and VAT mode using the separate
+`config/order-header.partial.json` draft. It does not enable the full workflow.
+See [Order-header calibration](../documents/implementation/order-header-mapping.md).
+
+Once inspection matches the visible editor, test the four header writes on that
+same **unsaved test Order**. This changes the date/reference and selects Net/With
+VAT; it never sends Save. Use the proposed number returned by your inspection:
+
+```bat
+..\.venv\Scripts\fakturama-cash.exe test-order-header --expected-number PO000002 --date 2026-07-14 --reference WEB-2026-0714-A17
+```
+
+The command activates/maximizes Fakturama, requires an empty reference and the
+initial Gross/With VAT modes, preserves the number, then reads all five fields back.
+It saves before/after evidence under `evidence/private/order-header-test/` and sounds
+success/failure tones (unless `--quiet`). If it stops, inspect the editor and evidence:
+partial unsaved edits may remain. There is no automatic rollback or retry. A successful
+header test does **not** mean the full workflow is calibrated. No Ollama call is made.
+
 On this workspace, the existing system pytest temporary directory is owned by a different execution account. If plain `pytest` reports access denied during fixture setup, use a fresh local test directory:
 
 ```bat
@@ -54,6 +80,27 @@ REM List missing mappings without connecting to the desktop.
 ```
 
 ### Image extraction and validation
+
+`diagnose` now restores, maximizes and brings the selected Fakturama window to the foreground
+before collecting evidence. Live workflow preflight uses the same preparation.
+Keep it unobstructed and do not switch apps until
+capture finishes. The diagnostic verifies foreground ownership and stable bounds
+before and after the screen-region capture, and stops if either changes. Its
+`*-capture.json` records the observed window title, handle, bounds and capture
+method. This is not an occlusion-independent window capture: always-on-top overlays
+can still cover pixels. Review the screenshot before using it for calibration.
+Activation changes window focus, but does not create or save business records.
+
+After `diagnose` finishes, two short rising tones mean capture succeeded; one
+lower tone means it stopped with an error (switch back to CMD for the details).
+Use `--quiet` to disable progress and sound. Audio is best-effort and respects
+system audio availability; the result JSON and exit code remain authoritative.
+
+The adapter supports verified `select_tab` steps and bounded `scroll_to` navigation
+inside a specified panel, including navigation preparation for nested query field
+groups. These require observed selectors and working accessibility patterns;
+they do not complete the missing live UI profile or custom-table reader.
+See [UI calibration](../documents/implementation/ui-profile.md) for configuration.
 
 The structured extraction path makes three sequential requests to an **Ollama-compatible `/api/chat` vision endpoint**:
 
