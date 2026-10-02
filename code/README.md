@@ -8,24 +8,193 @@ The existing Part 1 Word design documents are preserved unchanged. The assignmen
 
 Latest verification (2026-10-02): the actual source image passed three-pass
 extraction and manual field review, including the corrected delivery street and
-source customer ID. All 116 tests passed. Desktop inspection is currently blocked
-by a helper initialization failure; live UI calibration and an actual transaction
-remain unfinished. See [remaining issues and test steps](../documents/implementation/remaining-issues-and-test-plan.md).
+source customer ID. The latest automated suite passed 173 tests. The user also
+confirmed live Order-header reading. The controlled header-write test still needs
+live verification; the assistant's desktop helper could not initialize. Full UI
+calibration and an actual transaction remain unfinished. See
+[remaining issues and test steps](../documents/implementation/remaining-issues-and-test-plan.md).
 
 ## Setup
 
-Use Windows with Python 3.11+, an unlocked interactive desktop, and Fakturama running at the same privilege level as Python. Use a disposable Fakturama workspace for calibration. Back up its data first; do not use customer production data.
+All commands below are for **Windows CMD**, not PowerShell. Setup has three separate
+parts: Python dependencies, OCR + a running vision model, and a calibrated Fakturama
+UI. Installing Python packages alone does not provide the model or complete the UI mappings.
 
-CMD, from the `code` directory. The shared virtual environment remains one level above it:
+### 1. Prerequisites
+
+| Requirement | Why it is needed |
+| --- | --- |
+| Windows 10 22H2 or newer / Windows 11 | Native Windows UI automation, Windows OCR and the local Ollama setup |
+| Python 3.11+; this workspace uses 3.12 | Runs the CLI; use a Windows Python installation, not WSL |
+| Fakturama installed and able to open a test workspace | Target desktop application; use the English UI observed by the current mappings |
+| Windows English (`en-US`) OCR language support | The code explicitly requests this language; pip does not install Windows language capabilities |
+| Ollama plus the downloaded **vision-capable** `gemma3:4b` model | Produces structured fields from the order image; a text-only model is insufficient |
+| Original readable order image and writable local folders | Input plus private extraction, diagnostic and checkpoint evidence |
+| Complete, live-verified UI profile | Required for the full Order-to-Invoice run; **not supplied yet** |
+
+Use an unlocked interactive desktop, with Fakturama and Python at the same privilege
+level. Back up Fakturama data and use a disposable workspace, not production data.
+Ensure enough disk space for Python, Ollama, its model and private evidence, and
+enough available memory to load the model. CPU inference can take several minutes
+per pass; there is no guaranteed runtime on every machine.
+
+### 2. Install the Python project
+
+Open CMD in the checkout's `code` directory (adjust the path on another machine).
+The shared virtual environment is one level above it. Create it only if it does
+not already exist:
 
 ```bat
-py -3 -m venv ..\.venv
+cd /d "D:\TJM Task\code"
+py -3.12 --version
+if not exist ..\.venv\Scripts\python.exe py -3.12 -m venv ..\.venv
 ..\.venv\Scripts\python.exe -m pip install -e ".[test,ocr]"
-..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\python.exe -m pip check
 ..\.venv\Scripts\fakturama-cash.exe --help
 ```
 
-The `ocr` extra and Windows' installed English OCR language pack are required for image extraction: OCR locates the table boundaries. OCR does not supply business values. The standalone `ocr` command remains a raw diagnostic. The dependency configuration is in `pyproject.toml`; the environment used for testing is recorded in [verification notes](../documents/implementation/verification.md).
+Install Python first if `py` is unavailable; choose the version you installed if it
+is not 3.12. Using the explicit executable paths means activation is unnecessary.
+The `[test,ocr]` extras include pytest and the WinRT OCR bindings; core dependencies
+include Pydantic, Pillow and pywinauto. They do **not** install Fakturama, Ollama,
+model weights or the Windows OCR language capability.
+
+### 3. Install Ollama and download the vision model
+
+Install Ollama using the [official Windows installer](https://ollama.com/download/windows),
+then open a **new CMD window**. If using VS Code's terminal, restart VS Code after
+installation so it receives the updated PATH. Ollama runs a local API on port 11434;
+see its [Windows setup requirements](https://docs.ollama.com/windows).
+
+```bat
+where ollama
+ollama --version
+ollama pull gemma3:4b
+ollama ls
+curl.exe --fail http://localhost:11434/api/tags
+```
+
+Confirm `gemma3:4b` appears in the installed model list and the API response.
+Downloading requires internet access; subsequent local inference uses the installed
+model. The [gemma3:4b model](https://ollama.com/library/gemma3:4b) accepts images and
+requires Ollama 0.6 or later. Do not replace it with a text-only tag. Its listed
+download is approximately 3.3 GB; download size is not a RAM requirement.
+
+If the API connection fails, start the Ollama app. Alternatively, run the following
+in a **separate CMD window** and keep that window open:
+
+```bat
+ollama serve
+```
+
+Do not start a second server when the background app already serves port 11434.
+An address-already-in-use error means you should check the existing service, not
+keep retrying. The project contacts the API directly; an interactive `ollama run`
+chat and the Python `ollama` package are not needed. See the
+[Ollama CLI reference](https://docs.ollama.com/cli).
+
+### 4. Configure this CMD session
+
+In the CMD window that will run the project:
+
+```bat
+cd /d "D:\TJM Task\code"
+set "FAKTURAMA_VISION_URL=http://localhost:11434/api/chat"
+set "FAKTURAMA_VISION_MODEL=gemma3:4b"
+set FAKTURAMA_VISION_MODEL
+```
+
+Repeat these settings in every new terminal. Activating `.venv` does not restore
+them, and copying `.env.example` to `.env` has no effect: the CLI does **not** load
+`.env` automatically. No token is needed for the default local Ollama service.
+An approved remote service may use `FAKTURAMA_VISION_TOKEN`; it receives the source
+image, so use HTTPS and appropriate data permission. Keep secrets out of Git.
+
+### 5. Check OCR, the source image and extraction
+
+Install Windows English OCR language support if it is missing. The following
+diagnostic is the practical check that the Python bindings and Windows OCR engine
+both work. Use the full-page **Sales Order Input** image, not a small Fakturama UI
+screenshot. Provide a readable raster image such as PNG; the CLI does not directly
+extract images from DOCX/PDF or accept SVG. The input file must not exceed 20 MB
+or Windows OCR's supported image dimensions.
+
+The image path below exists in this working copy; private/extracted artifacts may
+be absent in a clean clone. Supply your own extracted assignment image if needed:
+
+```bat
+set "ORDER_IMAGE=..\documents\qa_flow_source\source_unpacked\word\media\image9.png"
+dir "%ORDER_IMAGE%"
+..\.venv\Scripts\fakturama-cash.exe ocr "%ORDER_IMAGE%" --out evidence\private\setup-ocr
+..\.venv\Scripts\fakturama-cash.exe validate "%ORDER_IMAGE%"
+```
+
+Stop if a check fails. `validate` must report `validated_image`; inspect its private
+evidence against the original image before attempting business writes. OCR locates
+the table and address blocks, supplies raw address hints and checks address/customer
+ID consistency. It does not replace the vision extraction with approved order data.
+The three model requests each have a 1200-second socket timeout. Passing raw OCR
+alone does not prove the model works. Neither command needs Fakturama or changes it.
+
+Run the automated tests separately; they do not download models or perform live UI
+writes. This local temporary directory avoids this workspace's system-temp ownership issue:
+
+```bat
+if not exist .pytest_runs mkdir .pytest_runs
+set "PYTEST_DEBUG_TEMPROOT=%CD%\.pytest_runs"
+..\.venv\Scripts\python.exe -m pytest -q
+```
+
+### 6. Prepare Fakturama and pass the live-workflow gate
+
+Open the backed-up, disposable workspace in Fakturama. Check that its currency is
+**EUR**, matching the assignment, and use the English UI expected by the draft
+selectors. Keep the desktop unlocked and avoid interacting with it during automation.
+Review unrelated unsaved editors yourself; the automation must not discard them.
+Use a writable `runs` directory and one automation process per Fakturama workspace.
+
+First capture the UI and review that the screenshot actually shows Fakturama:
+
+```bat
+..\.venv\Scripts\fakturama-cash.exe diagnose --out evidence\private\setup-ui
+..\.venv\Scripts\fakturama-cash.exe check-profile config\observed.partial.json
+```
+
+The partial-profile check is **expected to fail** with missing mappings. Follow
+[UI calibration](../documents/implementation/ui-profile.md) and the
+[Order-header checks](../documents/implementation/order-header-mapping.md) to verify
+controls in small groups. Header success alone is not enough: Debtor/Product
+selectors, complete result tables, addresses, payments/VAT, Order/Invoice fields,
+linkage and persisted-state verification still need complete live mappings.
+
+Only after creating and live-verifying `config\live.json`, run these commands in
+the same CMD session configured above. Run the second only if the first succeeds:
+
+```bat
+..\.venv\Scripts\fakturama-cash.exe check-profile config\live.json
+..\.venv\Scripts\fakturama-cash.exe run "%ORDER_IMAGE%" --profile config\live.json
+```
+
+`check-profile` checks configuration completeness, not live correctness. Do not set
+`calibrated: true` simply to bypass the gate. A full scenario is not currently ready
+just because all software is installed; it is complete only when `run` reports
+`complete` after persisted Order and linked Invoice verification.
+
+### Common setup problems
+
+| Symptom | Check / fix |
+| --- | --- |
+| `ollama` is not recognized | Install Ollama; reopen CMD or restart VS Code; verify `where ollama` |
+| Connection refused on port 11434 | Start Ollama and retry the API check; do not launch duplicate servers |
+| Model is missing | Run `ollama pull gemma3:4b` against the service you intend to use |
+| `FAKTURAMA_VISION_MODEL is not configured` | Repeat the `set` commands in the same CMD window as the CLI |
+| Windows English OCR language pack unavailable | Install the Windows English OCR capability; rerun `ocr` |
+| Input file not found | Check `ORDER_IMAGE` and working directory; extracted private files are not bundled with a clean clone |
+| Model timeout or invalid extracted values | Review evidence and available machine resources; do not bypass validation or assume a retry is safe after UI writes |
+| UI profile not fully calibrated | Finish and verify mappings; this is an implementation gate, not a missing pip package |
+
+Dependency declarations are in `pyproject.toml`; [verification notes](../documents/implementation/verification.md)
+record the earlier environment snapshot, not the current end-to-end completion status.
 
 ## Commands
 
