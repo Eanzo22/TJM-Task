@@ -17,5 +17,3 @@ $testRun = Join-Path '.pytest_runs' ([guid]::NewGuid().ToString('N'))
 Full setup and current implementation limits are in [code/README.md](code/README.md).
 
 The unique test directory avoids a Windows ownership conflict in the existing system pytest temp directory. The shared environment uses Python 3.12, matching its installed native dependencies.
-
-Two Word files were open/locked during organization: the assignment and the original `Fakturama Image to Cash Automation Design.docx`. Their last saved versions were copied to `documents/`; their originals remain at the root until Word releases them. Unsaved Word edits are not included in those copies. The three other design versions were moved intact. Do not overwrite the copies until any open edits have been saved and compared.
