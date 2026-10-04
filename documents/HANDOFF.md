@@ -2,6 +2,17 @@
 
 ## Latest continuation (2026-10-04, Development)
 
+### Published live UI profile
+
+User requested including the ready-to-use live profile in the repository.
+`code/config/live-profile.json` is now tracked through an explicit `.gitignore`
+exception; other `live*.json` variants remain ignored. The included profile has
+`calibrated:true` for the verified English/EUR UI at 1920×1080 and the tested
+display scale. Its action/query mappings match the component builder and contain
+no credentials or customer records. Normal `run` loads it directly. The builder
+remains optional and defaults to false when replacing the supplied file.
+This supersedes older notes below that the generated profile was ignored.
+
 Work remains on **Development**. User asked to finish implementation with UIA,
 simple UI date fallback and focused verification. The user requested committing
 the completed implementation on Development; no push requested.

@@ -16,3 +16,4 @@ _qa*/
 build_*design.py
 build_revised_flow_documents.py
 code/config/live*.json
+!code/config/live-profile.json

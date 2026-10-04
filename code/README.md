@@ -39,7 +39,10 @@ This partial mapping deliberately uses `copy_scope: unverified`; it cannot be
 used by the business workflow. See [UI profile details](../documents/implementation/ui-profile.md)
 for the small new operations and the remaining calibration requirements.
 
-Compose the local profile from the reviewed component mappings:
+The repository includes `config/live-profile.json`, calibrated for the observed
+English/EUR Fakturama UI at 1920×1080 and the tested display scale. Normal `run`
+loads this file directly. Review the mappings if your UI or display setup differs.
+To rebuild it from the reviewed component mappings:
 
 ```bat
 ..\.venv\Scripts\python.exe scripts\build_live_profile.py
@@ -47,8 +50,9 @@ Compose the local profile from the reviewed component mappings:
 
 This defaults to `calibrated: false`. `--calibrated` confirms that the component
 mappings have been checked in the target English/EUR test workspace; it does not
-claim a successful integrated transaction. The generated `config/live-profile.json`
-is ignored by Git. `scripts/run_live_smoke.py` runs a CODEX-labelled synthetic JSON
+claim a successful integrated transaction. Rebuilding replaces the tracked
+`config/live-profile.json`; no rebuild is needed to use the supplied profile.
+`scripts/run_live_smoke.py` runs a CODEX-labelled synthetic JSON
 fixture through the same journal and workflow, without repeating image extraction.
 
 All commands below are for **Windows CMD**, not PowerShell. Setup has three separate
@@ -65,7 +69,7 @@ UI. Installing Python packages alone does not provide the model or complete the 
 | Windows English (`en-US`) OCR language support | The code explicitly requests this language; pip does not install Windows language capabilities |
 | Ollama plus the downloaded **vision-capable** `gemma3:4b` model | Produces structured fields from the order image; a text-only model is insufficient |
 | Original readable order image and writable local folders | Input plus private extraction, diagnostic and checkpoint evidence |
-| Complete, live-verified UI profile | Generate and review `config/live-profile.json` from the supplied component mappings |
+| Complete, live-verified UI profile | Use the supplied `config/live-profile.json` for the tested setup; review mappings for other setups |
 
 Use an unlocked interactive desktop, with Fakturama and Python at the same privilege
 level. Back up Fakturama data and use a disposable workspace, not production data.
@@ -353,7 +357,7 @@ The document's full-page **Sales Order Input** image was available and inspected
 ..\.venv\Scripts\fakturama-cash.exe run "C:\path\order.png" --profile config/live-profile.json
 ```
 
-`run` checks UI profile completeness before image/model work. The generated `config/live-profile.json` stays local and ignored. Supplied component mappings are assembled by `scripts/build_live_profile.py`; review them for your workspace before explicit calibration. See [UI calibration](../documents/implementation/ui-profile.md).
+`run` checks UI profile completeness before image/model work and loads the tracked `config/live-profile.json` by default. The optional `scripts/build_live_profile.py` rebuilds it from component mappings; review them for your workspace before explicit calibration. See [UI calibration](../documents/implementation/ui-profile.md).
 
 Exit code 0 means the command's reported operation completed; 2 means review is required. A successful `diagnose`, raw `ocr`, or synthetic validation is **not** a successful Order/Invoice run. Only `run` can report `complete`, after persisted-state verification.
 

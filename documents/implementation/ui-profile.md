@@ -1,8 +1,9 @@
 # UI calibration contract
 
-Supplied component profiles remain **calibrated:false**. The builder composes the
-reviewed English/EUR mappings into the local `config/live-profile.json`; explicit
-calibration is required for that workspace. Live Order/Invoice results are in the
+Supplied component profiles remain **calibrated:false**. The repository includes
+`config/live-profile.json` with **calibrated:true**, verified for the observed
+English/EUR UI at 1920×1080 and the tested display scale. The builder can regenerate
+it; review and calibration are required for a different setup. Live Order/Invoice results are in the
 latest handoff. SWT tables expose no `DataItem` rows, so calibrated clipboard
 reads are used. Empty accessibility children never imply an empty database.
 
@@ -168,8 +169,9 @@ Navigation/search recipes must not create or save data. Otherwise they bypass th
 ## Composed English UIA profile (2026-10-04)
 
 `scripts/build_live_profile.py` composes master forms, definitions, selectors and
-document mappings into ignored `config/live-profile.json`. It defaults to an
-uncalibrated result; `--calibrated` is an explicit mapping review assertion.
+document mappings into the tracked `config/live-profile.json`. Rebuilding defaults
+to an uncalibrated result and replaces the supplied profile; `--calibrated` is an
+explicit mapping review assertion. Normal `run` uses the supplied file directly.
 The user authorized the EUR synthetic workspace on Development.
 
 `select_tree` explicitly selects Orders or Invoices. `documents` combines both
