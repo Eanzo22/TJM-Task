@@ -2,7 +2,7 @@
 from .errors import ReviewRequired
 from .matching import exact_match, payment_definition
 from .normalize import key
-from .verification import document_row, require
+from .verification import document_row, equal, require
 
 ACTIONS = {
     "open_order", "fill_order_header", "open_debtor_selector", "search_debtor", "cancel_debtor_selector",
@@ -12,9 +12,14 @@ ACTIONS = {
     "new_vat", "fill_vat", "save_vat", "new_product", "fill_product", "save_product",
     "fill_line", "fill_order_totals", "save_order", "open_documents", "create_linked_invoice",
     "fill_invoice_payment", "save_invoice", "reopen_invoice",
+    "inspect_payment", "inspect_vat",
+    "fill_order_addresses",
+    'inspect_environment', 'close_environment',
 }
 QUERIES = {"documents", "order", "debtor_results", "payment_results", "debtor", "product_results",
-           "vat_results", "product", "line", "invoice", "invoice_methods", "environment"}
+           "vat_results", "product", "line", "invoice", "invoice_methods", "environment",
+           "payment", "payment_draft", "vat", "vat_draft"}
+QUERIES.update({'order_header', 'order_addresses'})
 
 
 class Workflow:
@@ -44,23 +49,31 @@ class Workflow:
     def run(self, order):
         order.reconcile()
         self.ctx["input"] = order.model_dump(mode="json")
+        self.ctx['separate_delivery'] = order.debtor.billing != order.debtor.delivery
         try:
             self.progress("Checking earlier run checkpoints")
             self.journal.guard_prior_run()
             self.progress("Checking UI profile readiness")
             self.ui.preflight(ACTIONS, QUERIES)
+            self.navigate('inspect_environment')
             require(self.read("environment"), {"currency": order.currency}, "environment")
+            self.navigate('close_environment')
             self.navigate("open_documents")
             prior = self.read("documents")
             self.progress("Checking persisted documents for possible duplicates")
             # A reference alone is not unique. A plausible customer/reference match
             # still stops even when its total differs: it may be an interrupted Order.
             for row in prior:
+                customer = f'{order.debtor.company}, {order.debtor.first_name} {order.debtor.last_name}'
+                recipients = {key(customer), key(order.debtor.billing.name), key(order.debtor.delivery.name)}
                 if (key(row.get("reference", "")) == key(order.external_reference)
-                    and key(row.get("company", "")) == key(order.debtor.company)):
+                    and (key(row.get("company", "")) == key(order.debtor.company)
+                         or key(row.get('customer', '')) in recipients)):
                     raise ReviewRequired("Possible previous transaction exists", stage="duplicate_check", observed=row,
                                          next_action="Inspect this customer/reference and its dates, identifiers and linked documents before a new run.")
 
+            self.ctx.update(order_editor='New Order', order_tab='New Order',
+                            invoice_editor='New Invoice', debtor_editor='New Debtor')
             self.write("open_order")
             initial = self.read("order")
             self.ctx["order_no"] = initial["no"]
@@ -68,7 +81,8 @@ class Workflow:
                 raise ReviewRequired("Proposed Order number missing", stage="open_order")
             self.journal.data["identifiers"]["order"] = initial["no"]
             self.write("fill_order_header")
-            require(self.read("order"), {"no": initial["no"], "date": order.order_date,
+            self.ctx['order_tab'] = '*New Order'
+            require(self.read("order_header"), {"no": initial["no"], "date": order.order_date,
                     "reference": order.external_reference, "price_mode": "Net", "vat_mode": "With VAT"}, "order_header")
             self.resolve_debtor(order)
             for index, line in enumerate(order.items):
@@ -81,6 +95,7 @@ class Workflow:
             require(self.read("order"), expected, "order_before_save")
             self.evidence("order-before-save")
             self.write("save_order")
+            self.ctx.update(order_editor=initial['no'], order_tab=initial['no'])
             self.navigate("open_documents")
             order_row = {"type": "Order", "no": initial["no"], "date": order.order_date,
                          "reference": order.external_reference, "state": "open", "total": order.source_total}
@@ -90,6 +105,19 @@ class Workflow:
             self.evidence("order-saved")
 
             self.navigate("activate_order")
+            addresses = {key: expected[key] for key in ('invoice_address','delivery_address')}
+            if not equal(self.read('order_addresses'),addresses):
+                # A new SWT Delivery tab is bound only after the first Save.
+                # Reapply its source snapshot after that confirmed Save, then
+                # make one distinct, journalled update rather than replaying it.
+                self.journal.event('address_binding_repair',reason='Source snapshot changed after initial save/rebinding')
+                self.write('fill_order_addresses',':persisted')
+                require(self.read('order'),expected,'order_addresses_before_update')
+                self.write('save_order',':addresses')
+                self.navigate('open_documents')
+                document_row(self.read('documents'),order_row,'saved_order_address_update')
+                self.navigate('activate_order')
+            require(self.read('order'), expected, 'follow_up_source_order')
             self.write("create_linked_invoice")
             invoice = self.read("invoice")
             self.ctx["invoice_no"] = invoice["no"]
@@ -98,7 +126,14 @@ class Workflow:
                 raise ReviewRequired("Proposed Invoice identifiers/dates missing", stage="new_invoice")
             self.journal.data["identifiers"]["invoice"] = invoice["no"]
             copied = {k: v for k, v in expected.items() if k not in ("no", "date")}
-            copied.update(order_date=order.order_date, order_no=initial["no"])
+            copied.update(order_date=order.order_date)
+            # Some adapters expose the relationship identifier. This Fakturama
+            # UI exposes the order date and copied fields, but no source number.
+            # Its recipe invokes Invoice inside the exact saved Order pane.
+            if 'order_no' in invoice:
+                copied['order_no'] = initial['no']
+            self.journal.event('invoice_origin', source_order=initial['no'],
+                               verification='relationship_field' if 'order_no' in invoice else 'scoped_follow_up_and_copied_fields')
             require(invoice, copied, "invoice_copied_values")
             if sum(key(m) == key(order.payment.method) for m in self.read("invoice_methods")) != 1:
                 raise ReviewRequired("Invoice payment method unavailable or ambiguous", stage="invoice_payment")
@@ -109,6 +144,7 @@ class Workflow:
             require(self.read("invoice"), {**copied, **preserved, **payment}, "invoice_before_save")
             self.evidence("invoice-before-save")
             self.write("save_invoice")
+            self.ctx['invoice_editor'] = invoice['no']
             self.navigate("open_documents")
             rows = self.read("documents")
             document_row(rows, order_row, "final_order")
@@ -160,17 +196,21 @@ class Workflow:
             self.ctx["payment_definition"] = definition
             self.navigate("open_payments")
             self.navigate("search_payment")
-            payment_numbers = ("discount", "discount_days", "net_days")
-            # Matching only the name/code could reuse conflicting payment terms.
-            payment = exact_match(self.read("payment_results"), definition, identity="name", numeric_fields=payment_numbers)
+            # Lists omit fields such as the E-Invoice code and payment texts.
+            # Match one identity, then inspect its editor before reusing terms.
+            payment = exact_match(self.read("payment_results"), {"name": definition["name"]}, identity="name")
             if payment is None:
                 self.write("new_payment")
                 self.write("fill_payment")
+                require(self.read("payment_draft"), definition, "payment_before_save")
                 self.write("save_payment")
                 self.navigate("search_payment")
-                payment = exact_match(self.read("payment_results"), definition, identity="name", numeric_fields=payment_numbers)
+                payment = exact_match(self.read("payment_results"), {"name": definition["name"]}, identity="name")
                 if payment is None:
                     raise ReviewRequired("Saved Payment Method not visible", stage="payment_saved")
+            self.ctx["selected_payment"] = payment
+            self.navigate("inspect_payment")
+            require(self.read("payment"), definition, "payment_definition")
             self.write("new_debtor")
             customer_id = self.read("debtor")["customer_id"]
             if not customer_id:
@@ -181,6 +221,11 @@ class Workflow:
                 "price_mode": "Net", "payment_method": order.payment.method,
                 "separate_delivery": debtor.billing != debtor.delivery,
             }
+            # Contact editors have one Company/first/last name for all addresses.
+            # Per-document recipient names are entered in the document's address
+            # Edit below; postal and additional address fields stay in the master.
+            for role in ('billing', 'delivery'):
+                self.ctx['debtor_definition'][role].pop('name')
             self.write("fill_debtor")
             require(self.read("debtor"), self.ctx["debtor_definition"], "debtor_before_save")
             self.write("save_debtor")
@@ -192,7 +237,8 @@ class Workflow:
                 raise ReviewRequired("Saved Debtor not visible", stage="debtor_saved")
         self.ctx["selected_debtor"] = row
         self.write("select_debtor")
-        require(self.read("order"), {"invoice_address": debtor.billing.model_dump(mode="json"),
+        self.write('fill_order_addresses')
+        require(self.read("order_addresses"), {"invoice_address": debtor.billing.model_dump(mode="json"),
                                     "delivery_address": debtor.delivery.model_dump(mode="json")}, "selected_addresses")
         self.journal.verified("debtor_selected")
         self.progress("Selected Debtor addresses verified")
@@ -211,16 +257,28 @@ class Workflow:
             self.ctx["vat_definition"] = {**vat, "description": vat["name"]}
             self.navigate("open_vats")
             self.navigate("search_vat")
-            match = exact_match(self.read("vat_results"), vat, identity="name", numeric_fields=("value",))
+            match = exact_match(self.read("vat_results"), {"name": vat["name"]}, identity="name")
             if match is None:
                 self.write("new_vat", suffix)
                 self.write("fill_vat", suffix)
+                require(self.read("vat_draft"), self.ctx["vat_definition"], "vat_before_save")
                 self.write("save_vat", suffix)
                 self.navigate("search_vat")
-                if exact_match(self.read("vat_results"), vat, identity="name", numeric_fields=("value",)) is None:
+                match = exact_match(self.read("vat_results"), {"name": vat["name"]}, identity="name")
+                if match is None:
                     raise ReviewRequired("Saved VAT not visible", stage="vat_saved")
+            self.ctx["selected_vat"] = match
+            self.navigate("inspect_vat")
+            observed_vat = self.read("vat")
+            require(observed_vat, vat, "vat_definition")
+            description = observed_vat.get("description")
+            if not isinstance(description, str) or not description.strip():
+                raise ReviewRequired("VAT dropdown description is unreadable", stage="vat_selection")
             self.ctx["product_definition"] = dict(sku=line.sku, name=line.description, description=line.description,
-                gross=str(line.gross_master), vat=vat, cost="0.00", stock="0.00")
+                # The Product dropdown displays the VAT description. The full
+                # name/rate/code was checked in VATs just above. Reuse its
+                # observed description, which need not equal its internal name.
+                gross=str(line.gross_master), vat_description=description, cost="0.00", stock="0.00")
             self.write("new_product", suffix)
             self.write("fill_product", suffix)
             require(self.read("product"), self.ctx["product_definition"], "product_before_save")

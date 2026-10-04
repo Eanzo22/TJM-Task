@@ -1,0 +1,1715 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 30,
+  "observation": "2026-10-04: New product UIA fields and native VAT options observed. Partial form mapping, not a full workflow profile. VAT uses the description already verified in the VAT master list. Contact, Main address and Miscellaneous controls observed in the saved test contact. New Contact title and separate delivery roles still need mapping; helper recipes do not claim full fill_debtor support.",
+  "actions": {
+    "new_product": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "New product"
+          }
+        ],
+        "operation": "click_bounds",
+        "wait_query": "product"
+      }
+    ],
+    "fill_product": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Item Number"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${product_definition.sku}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${product_definition.name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Item Number"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Description"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${product_definition.description}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "VAT"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${product_definition.vat_description}"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "to_right_of": "Price (gross)"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${product_definition.gross}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": ","
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "to_right_of": "cost price (net)"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${product_definition.cost}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": ","
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Stock"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${product_definition.stock}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New product"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": "."
+      }
+    ],
+    "save_product": [
+      {
+        "path": [
+          {
+            "control_type": "TabItem",
+            "title": "*New product",
+            "selected": true
+          }
+        ],
+        "operation": "select_tab"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ],
+        "operation": "invoke"
+      }
+    ],
+    "fill_debtor_contact": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Company"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.company}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "First Name Last Name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.first_name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "First Name Last Name"
+            }
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.last_name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "",
+            "to_right_of": "Salutation"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${debtor_definition.salutation}"
+      }
+    ],
+    "fill_debtor_billing_fields": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Addresses"
+          }
+        ]
+      },
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Main address"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Street"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.billing.street}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "ZIP - City"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.billing.zip}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "ZIP - City"
+            }
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.billing.city}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "Country"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${debtor_definition.billing.country}"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "additional name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.billing.additional_name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Address specification"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.billing.specification}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "district"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.billing.district}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "E-Mail"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.email}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Telephone"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.telephone}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      }
+    ],
+    "fill_debtor_misc": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Miscellaneous"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Alias name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.alias}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "Payment"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${debtor_definition.payment_method}"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Discount"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.discount}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": "."
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "Net or Gross"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${debtor_definition.price_mode}"
+      }
+    ],
+    "new_debtor": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "New Contact"
+          }
+        ],
+        "operation": "click_bounds",
+        "wait_query": "debtor_contact"
+      }
+    ],
+    "set_billing_roles": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Addresses"
+          }
+        ]
+      },
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Main address"
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Button",
+            "title": "",
+            "to_right_of": "address type"
+          }
+        ]
+      },
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Invoice address"
+          }
+        ],
+        "value": true
+      },
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ],
+        "value": false,
+        "when": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ],
+        "value": true,
+        "unless": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "dismiss_popup",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ],
+        "wait_absent": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ]
+      }
+    ],
+    "add_delivery_address": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Addresses"
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Button",
+            "title": "+"
+          }
+        ],
+        "when": "${debtor_definition.separate_delivery}"
+      }
+    ],
+    "set_delivery_roles": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Addresses"
+          }
+        ],
+        "when": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "additional address #1"
+          }
+        ],
+        "when": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Button",
+            "title": "",
+            "to_right_of": "address type"
+          }
+        ],
+        "when": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Invoice address"
+          }
+        ],
+        "value": false,
+        "when": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ],
+        "value": true,
+        "when": "${debtor_definition.separate_delivery}"
+      },
+      {
+        "operation": "dismiss_popup",
+        "path": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ],
+        "when": "${debtor_definition.separate_delivery}",
+        "wait_absent": [
+          {
+            "control_type": "CheckBox",
+            "title": "Delivery address"
+          }
+        ]
+      }
+    ],
+    "fill_debtor_delivery_fields": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Addresses"
+          }
+        ]
+      },
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "additional address #1"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Street"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.delivery.street}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "ZIP - City"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.delivery.zip}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "ZIP - City"
+            }
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.delivery.city}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "Country"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${debtor_definition.delivery.country}"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "additional name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.delivery.additional_name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Address specification"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.delivery.specification}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "district"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.delivery.district}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "E-Mail"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.email}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Telephone"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${debtor_definition.telephone}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Debtor"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Customer ID"
+          }
+        ]
+      }
+    ],
+    "save_debtor": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "TabItem",
+            "title": "*New Debtor",
+            "selected": true
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ]
+      }
+    ]
+  },
+  "queries": {
+    "product": {
+      "fields": {
+        "sku": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Item Number"
+            }
+          ],
+          "read": "native_text"
+        },
+        "name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "description": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Description"
+            }
+          ],
+          "read": "native_text"
+        },
+        "gross": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "Edit",
+              "to_right_of": "Price (gross)"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "cost": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "Edit",
+              "to_right_of": "cost price (net)"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "stock": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Stock"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "vat_description": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New product"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "VAT"
+            }
+          ],
+          "read": "value"
+        }
+      }
+    },
+    "product_vat_options": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "New product"
+        },
+        {
+          "control_type": "ComboBox",
+          "title": "VAT"
+        }
+      ],
+      "read": "options"
+    },
+    "debtor_contact": {
+      "fields": {
+        "customer_id": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Customer ID"
+            }
+          ],
+          "read": "native_text"
+        },
+        "company": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Company"
+            }
+          ],
+          "read": "native_text"
+        },
+        "first_name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "First Name Last Name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "last_name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": {
+                "control_type": "Edit",
+                "title": "",
+                "to_right_of": "First Name Last Name"
+              }
+            }
+          ],
+          "read": "native_text"
+        },
+        "salutation": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "",
+              "to_right_of": "Salutation"
+            }
+          ],
+          "read": "value"
+        }
+      }
+    },
+    "debtor_billing_fields": {
+      "prepare": [
+        {
+          "operation": "select_tab",
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "TabItem",
+              "title": "Addresses"
+            }
+          ]
+        },
+        {
+          "operation": "select_tab",
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "TabItem",
+              "title": "Main address"
+            }
+          ]
+        }
+      ],
+      "fields": {
+        "street": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Street"
+            }
+          ],
+          "read": "native_text"
+        },
+        "zip": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "ZIP - City"
+            }
+          ],
+          "read": "native_text"
+        },
+        "city": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": {
+                "control_type": "Edit",
+                "title": "",
+                "to_right_of": "ZIP - City"
+              }
+            }
+          ],
+          "read": "native_text"
+        },
+        "country": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "Country"
+            }
+          ],
+          "read": "value"
+        },
+        "additional_name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "additional name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "specification": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Address specification"
+            }
+          ],
+          "read": "native_text"
+        },
+        "district": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "district"
+            }
+          ],
+          "read": "native_text"
+        },
+        "email": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "E-Mail"
+            }
+          ],
+          "read": "native_text"
+        },
+        "telephone": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Telephone"
+            }
+          ],
+          "read": "native_text"
+        }
+      }
+    },
+    "debtor_misc": {
+      "prepare": [
+        {
+          "operation": "select_tab",
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "TabItem",
+              "title": "Miscellaneous"
+            }
+          ]
+        }
+      ],
+      "fields": {
+        "alias": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Alias name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "payment_method": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "Payment"
+            }
+          ],
+          "read": "value"
+        },
+        "discount": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Discount"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "price_mode": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "Net or Gross"
+            }
+          ],
+          "read": "value"
+        }
+      }
+    },
+    "debtor_delivery_fields": {
+      "prepare": [
+        {
+          "operation": "select_tab",
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "TabItem",
+              "title": "Addresses"
+            }
+          ]
+        },
+        {
+          "operation": "select_tab",
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "TabItem",
+              "title": "additional address #1"
+            }
+          ]
+        }
+      ],
+      "fields": {
+        "street": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Street"
+            }
+          ],
+          "read": "native_text"
+        },
+        "zip": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "ZIP - City"
+            }
+          ],
+          "read": "native_text"
+        },
+        "city": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": {
+                "control_type": "Edit",
+                "title": "",
+                "to_right_of": "ZIP - City"
+              }
+            }
+          ],
+          "read": "native_text"
+        },
+        "country": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "Country"
+            }
+          ],
+          "read": "value"
+        },
+        "additional_name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "additional name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "specification": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Address specification"
+            }
+          ],
+          "read": "native_text"
+        },
+        "district": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "district"
+            }
+          ],
+          "read": "native_text"
+        },
+        "email": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "E-Mail"
+            }
+          ],
+          "read": "native_text"
+        },
+        "telephone": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Debtor"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Telephone"
+            }
+          ],
+          "read": "native_text"
+        }
+      }
+    }
+  }
+}

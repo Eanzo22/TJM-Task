@@ -1,4 +1,35 @@
-# Remaining issues and test plan
+# Remaining issues and focused verification
+
+Updated 2026-10-04, Development. The historical Oct2 notes below describe earlier
+blockers. UIA has since implemented selectors, missing masters, item editing,
+document address snapshots, linked Invoice and payment persistence.
+
+PO000002 → INV000001 passed save/reopen checks at EUR42.84. The larger four-line
+PO000003 passed post-save checks at EUR736.61 after a distinct address update.
+Its linked Invoice INV000002 passed paid/save/reopen checks. A separate clean
+production Workflow run **PO000004 → INV000003** completed without intervention at
+EUR678.30, including both saved addresses and reopened payment fields. No further
+verification run is required for the current implementation.
+
+286 automated tests passed. Address rebinding uses a separate confirmed update;
+uncertain outcomes stop before Invoice. Native focus, complete clipboard reads,
+item viewport guards and manual-recipient duplicate detection have coverage.
+
+Known limits needing additional implementation only if scope expands:
+
+- Nonzero overall discount/shipping and mixed-rate rounding edge cases.
+- Other image/address layouts than the supported assignment layout.
+- More lines requiring unobserved internal item-grid scrolling, large selectors
+  needing off-screen activation, or other display scale/language.
+- Invoice source Order number is absent from the GUI: use scoped follow-up,
+  Order date and copied fields, and disclose the narrower relationship evidence.
+- No automatic crash resume; reconcile each uncertain mutation before any action.
+
+Image extraction passed separately with the real local model. A synthetic JSON
+UI smoke run does not claim a fresh combined image-command demonstration.
+
+## Historical extraction and blocker notes (2026-10-02)
+
 
 Updated: 2026-10-02. The full live Order-to-Invoice cycle is not yet complete.
 

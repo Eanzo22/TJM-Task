@@ -31,6 +31,31 @@ def test_ocr_command_is_explicitly_raw_only(tmp_path, monkeypatch, capsys):
     assert len(calls) == 1
 
 
+def test_inspect_table_copies_without_running_action_recipes(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+    from fakturama_cash import cli
+    profile = {"queries": {"products": {"path": [{"title": "Products"}],
+                "clipboard_rows": {"columns": ["sku"], "copy_scope": "all_rows"}}}}
+    monkeypatch.setattr(cli, "load_profile", lambda path: profile)
+    adapter = SimpleNamespace(prepare_window=lambda: None, inspect_table=lambda name: [{"sku": "TEST"}])
+    monkeypatch.setattr(cli, "UIAAdapter", lambda profile: adapter)
+    assert main(["inspect-table", "products", "--profile", "test.json", "--out", str(tmp_path / "new" / "nested"), "--quiet"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["rows"] == [{"sku": "TEST"}]
+    assert json.loads(Path(result["evidence"]).read_text())["business_writes"] is False
+
+
+def test_inspect_table_rejects_hidden_actions_before_connecting(tmp_path, monkeypatch, capsys):
+    from fakturama_cash import cli
+    profile = {"queries": {"products": {"path": [{"title": "Products"}],
+                "clipboard_rows": {"columns": ["sku"], "copy_scope": "all_rows"},
+                "prepare": [{"operation": "invoke", "path": [{"title": "Save"}]}]}}}
+    monkeypatch.setattr(cli, "load_profile", lambda path: profile)
+    monkeypatch.setattr(cli, "UIAAdapter", lambda *args: pytest.fail("Must reject before connecting"))
+    assert main(["inspect-table", "products", "--profile", "test.json", "--quiet"]) == 2
+    assert json.loads(capsys.readouterr().err)["stage"] == "UI inspection"
+
+
 def test_incomplete_profile_reports_review_without_desktop(tmp_path, capsys):
     profile = tmp_path / "partial.json"
     profile.write_text('{"calibrated":false}', encoding="utf-8")

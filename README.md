@@ -7,7 +7,7 @@
 Run the project from `code/`:
 
 ```powershell
-cd "D:\TJM Task\code"
+cd "D:\TJM Task\Implementation\TJM-Task\code"
 New-Item -ItemType Directory -Path '.pytest_runs' -Force | Out-Null
 $testRun = Join-Path '.pytest_runs' ([guid]::NewGuid().ToString('N'))
 ..\.venv\Scripts\python.exe -m pytest -q --basetemp $testRun

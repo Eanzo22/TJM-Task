@@ -10,9 +10,14 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 PATTERN = re.compile(r"(?P<month>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2}) (?P<day>\d{1,2}), (?P<year>\d{4})")
 
 
+def date_text(control):
+    # SWT exposes the date as Value, with an empty accessible Name.
+    return control.window_text() or control.get_value()
+
+
 def observe_date(control):
     """Identify the highlighted segment from accessible character offsets."""
-    text = control.window_text()
+    text = date_text(control)
     match = PATTERN.fullmatch(text)
     if not match:
         raise ReviewRequired("Unsupported date display format", stage="date entry", observed=text)
@@ -20,7 +25,19 @@ def observe_date(control):
         month = match["month"]
         value = date(int(match["year"]), int(month) if month.isdigit() else MONTHS.index(month) + 1,
                      int(match["day"]))
-        selection = tuple(control.selection_indices())
+        try:
+            selection = tuple(control.selection_indices())
+        except Exception:
+            # CDateTime's native Edit lacks UIA TextPattern. EM_GETSEL reads
+            # the visible selection on that same UIA-discovered control; all
+            # actual date changes still use the widget's keyboard handling.
+            if not getattr(control, "handle", None) or control.class_name() != "Edit":
+                raise
+            from pywinauto.controls.win32_controls import EditWrapper
+            native = EditWrapper(control.handle)
+            if native.window_text() != text:
+                raise ValueError("Date text changed while reading selection")
+            selection = tuple(native.selection_indices())
     except Exception as exc:
         raise ReviewRequired("Cannot read date value or selected segment", stage="date entry", observed=text) from exc
     segment = next((name for name in ("month", "day", "year") if selection == match.span(name)), None)
@@ -29,6 +46,14 @@ def observe_date(control):
 
 def enter_date(control, target, *, focus_is_safe, timeout):
     """Send only digits/arrows to a verified focused field; never paste or press Save."""
+    from .normalize import day
+    # Do not disturb an already-correct date just to exercise segment entry.
+    # The adapter still blurs and verifies the retained value afterwards.
+    try:
+        if day(date_text(control)) == target:
+            return
+    except (ValueError, TypeError):
+        pass  # The segment observer below reports the unsupported display.
     def send(key):
         # type_keys sends OS keyboard input, so verify both window ownership and
         # field focus before EVERY key. Never auto-refocus after a lost focus.

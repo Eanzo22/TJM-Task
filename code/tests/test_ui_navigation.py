@@ -56,12 +56,47 @@ def test_nested_tab_steps_reacquire_and_verify(setup, monkeypatch):
     assert observations.count("inner") >= 2
 
 
+def test_document_category_selection_does_not_preserve_previous_filter(setup, monkeypatch):
+    item = Tab()
+    item.element_info = SimpleNamespace(control_type='TreeItem')
+    monkeypatch.setattr(setup, 'find', lambda *args: item)
+    step = dict(operation='select_tree', path='Orders category')
+    setup._navigate_control(step, {})
+    setup._navigate_control(step, {})
+    assert item.is_selected() and item.selections == 1
+
+
+def test_combined_document_categories_reject_a_repeated_document(setup, monkeypatch):
+    row = dict(type='Order', no='PO000001')
+    setup.profile['queries'] = {'orders': {'path':'orders'}, 'invoices': {'path':'invoices'}}
+    monkeypatch.setattr(setup, '_scalar', lambda *args: [row])
+    with pytest.raises(ReviewRequired, match='multiple categories'):
+        setup._read({'concat_queries':['orders','invoices']}, {})
+
+
 def test_tab_selection_failure_stops_without_repeated_clicks(setup, monkeypatch):
     tab = Tab(working=False)
     monkeypatch.setattr(setup, "find", lambda *args: tab)
     with pytest.raises(ReviewRequired, match="did not become selected"):
         setup._navigate_control({"operation": "select_tab", "path": "tab"}, {})
     assert tab.selections == 1
+
+
+def test_broken_selection_pattern_falls_back_to_observed_tab_bounds(setup, monkeypatch):
+    tab = Tab()
+    clicks = []
+    def unavailable():
+        raise RuntimeError("Member not found")
+    def click_input(**kwargs):
+        clicks.append(kwargs)
+        tab.selected = True
+    tab.select = unavailable
+    tab.rectangle = lambda: Box()
+    tab.click_input = click_input
+    monkeypatch.setattr(setup, "find", lambda *args: tab)
+    monkeypatch.setattr(ui, "_click_control", lambda c: c.click_input(coords=(50, 50)))
+    setup._navigate_control({"operation": "select_tab", "path": "tab"}, {})
+    assert clicks == [{"coords": (50, 50)}]
 
 
 class Panel:
@@ -168,8 +203,20 @@ def test_nested_field_groups_prepare_their_own_tabs(setup, monkeypatch):
 def test_live_preflight_prepares_window_but_static_check_does_not(setup, monkeypatch):
     setup.profile["calibrated"] = True
     calls = []
-    monkeypatch.setattr(setup, "prepare_window", lambda: calls.append("prepared"))
+    def prepare():
+        calls.append("prepared")
+        return SimpleNamespace(descendants=lambda **kwargs: [])
+    monkeypatch.setattr(setup, "prepare_window", prepare)
     setup.preflight(set(), set(), connect=False)
     assert calls == []
     setup.preflight(set(), set())
     assert calls == ["prepared"]
+
+
+def test_live_preflight_preserves_unrelated_dirty_editors(setup, monkeypatch):
+    setup.profile["calibrated"] = True
+    root = SimpleNamespace(descendants=lambda **kwargs: [
+        SimpleNamespace(element_info=SimpleNamespace(name="*New Order"))])
+    monkeypatch.setattr(setup, "prepare_window", lambda: root)
+    with pytest.raises(ReviewRequired, match="Unsaved editors"):
+        setup.preflight(set(), set())

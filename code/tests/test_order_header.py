@@ -220,6 +220,32 @@ def test_date_does_not_type_without_selection_pattern(scene, monkeypatch):
     assert date.keys == []
 
 
+def test_already_correct_date_does_not_disturb_segments(scene, monkeypatch):
+    adapter, _, _, date, ref, *_ = scene
+    date.value = "Jul 14, 2026"
+    monkeypatch.setattr(date, "selection_indices", lambda: pytest.fail("No navigation needed"))
+    adapter.act("fill_order_date", {"input": {"order_date": "2026-07-14"}})
+    assert date.keys == []
+    assert ref.has_keyboard_focus()
+
+
+def test_native_selection_fallback_for_swt_date_without_uia_text_pattern(scene, monkeypatch):
+    import sys
+    adapter, _, _, field, *_ = scene
+    selected = field.selection_indices
+    field.handle = 456
+    field.class_name = lambda: "Edit"
+    field.window_text = lambda: ""  # UIA Name is blank; Value holds the date.
+    field.selection_indices = lambda: (_ for _ in ()).throw(RuntimeError("No TextPattern"))
+    def native(handle):
+        assert handle == field.handle
+        return SimpleNamespace(window_text=lambda: field.value, selection_indices=selected)
+    monkeypatch.setitem(sys.modules, "pywinauto.controls.win32_controls", SimpleNamespace(EditWrapper=native))
+    adapter.act("fill_order_date", {"input": {"order_date": "2026-07-14"}})
+    assert field.value == "Jul 14, 2026"
+    assert field.writes == DATE_WRITES
+
+
 def test_date_does_not_type_into_other_foreground_window(scene, monkeypatch):
     adapter, _, _, date, *_ = scene
     monkeypatch.setattr("fakturama_cash.ui._capture_state", lambda root: (False, None))
@@ -284,6 +310,21 @@ def test_duplicate_label_stops(scene):
     spec = adapter.profile["queries"]["order_header"]["fields"]["date"]
     with pytest.raises(ReviewRequired, match="label is missing or ambiguous"):
         adapter._scalar(spec, {})
+
+
+def test_below_label_uses_live_geometry_not_desktop_coordinates(scene):
+    adapter, pane, *_ = scene
+    label = Control("Text", "Items", (500, 400, 550, 420))
+    existing = Control("Image", "", (510, 430, 530, 450))
+    new = Control("Image", "", (510, 460, 530, 480))
+    elsewhere = Control("Image", "", (700, 425, 720, 445))
+    pane.children_list.extend([label, existing, new, elsewhere])
+    path = [{"control_type": "Pane", "title": "New Order"},
+            {"control_type": "Image", "below_label": "Items"}]
+    assert adapter.find(path, {}) is existing
+    pane.children_list.append(Control("Image", "", (530, 430, 550, 450)))
+    with pytest.raises(ReviewRequired, match="ambiguous"):
+        adapter.find(path, {})
 
 
 def test_tied_field_candidates_stop(scene):

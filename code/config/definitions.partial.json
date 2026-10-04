@@ -1,0 +1,1145 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 30,
+  "observation": "2026-10-04: VAT list copies four columns and omits E-Invoice code. Inspect the matching editor for full validation. New TAX Rate fields and code options observed live; Standard is untouched.",
+  "actions": {
+    "open_vats": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "VATs"
+          }
+        ],
+        "operation": "click_bounds"
+      }
+    ],
+    "new_vat": [
+      {
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Create a new tax rate"
+          }
+        ],
+        "operation": "invoke",
+        "wait_query": "vat_draft"
+      }
+    ],
+    "fill_vat": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${vat_definition.name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Description"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Description"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${vat_definition.description}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "VAT code (E-Invoice)"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${vat_definition.code}",
+        "option_match": "vat_code"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Value"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${vat_definition.value}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New TAX Rate"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": "."
+      }
+    ],
+    "save_vat": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "TabItem",
+            "title": "*New TAX Rate",
+            "selected": true
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ]
+      }
+    ],
+    "search_vat": [
+      {
+        "operation": "type_text",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "VATs"
+          },
+          {
+            "control_type": "Edit",
+            "to_right_of": "Search:"
+          }
+        ],
+        "value": "${vat_definition.name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "VATs"
+          },
+          {
+            "control_type": "Pane",
+            "leaf": true
+          }
+        ]
+      }
+    ],
+    "inspect_vat": [
+      {
+        "operation": "select_copied_row",
+        "query": "vat_results",
+        "value": "${selected_vat}",
+        "wait_query": "vat"
+      }
+    ],
+    "open_payments": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "terms of payment"
+          }
+        ],
+        "operation": "click_bounds"
+      }
+    ],
+    "new_payment": [
+      {
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Create a new term of payment"
+          }
+        ],
+        "operation": "invoke",
+        "wait_query": "payment_draft"
+      }
+    ],
+    "fill_payment": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Description"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Description"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.description}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Account"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.account}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "!editorPaymentPaymentcode!"
+          }
+        ],
+        "operation": "select_option",
+        "value": "${payment_definition.code}"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cash discount"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.discount}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": "."
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Discount Days"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.discount_days}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": "."
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Net Days"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.net_days}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ],
+        "transform": "decimal",
+        "decimal_separator": "."
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Text 'unpaid'"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.unpaid_text}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Text 'deposit'"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.deposit_text}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Text 'paid'"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${payment_definition.paid_text}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Term of Payment"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Name"
+          }
+        ]
+      }
+    ],
+    "save_payment": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "TabItem",
+            "title": "*New Term of Payment",
+            "selected": true
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ]
+      }
+    ],
+    "search_payment": [
+      {
+        "operation": "type_text",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "terms of payment"
+          },
+          {
+            "control_type": "Edit",
+            "to_right_of": "Search:"
+          }
+        ],
+        "value": "${payment_definition.name}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "terms of payment"
+          },
+          {
+            "control_type": "Pane",
+            "leaf": true
+          }
+        ]
+      }
+    ],
+    "inspect_payment": [
+      {
+        "operation": "select_copied_row",
+        "query": "payment_results",
+        "value": "${selected_payment}",
+        "wait_query": "payment"
+      }
+    ],
+    "open_order": [
+      {
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Create: New Order"
+          }
+        ],
+        "operation": "invoke"
+      }
+    ],
+    "save_order": [
+      {
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ],
+        "operation": "invoke"
+      }
+    ],
+    "save_invoice": [
+      {
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ],
+        "operation": "invoke"
+      }
+    ],
+    "open_documents": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "Documents"
+          }
+        ],
+        "operation": "click_bounds"
+      }
+    ],
+    "new_debtor": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "New Contact"
+          }
+        ],
+        "operation": "click_bounds"
+      }
+    ],
+    "new_product": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "Navigation View"
+          },
+          {
+            "control_type": "Text",
+            "title": "New product"
+          }
+        ],
+        "operation": "click_bounds"
+      }
+    ]
+  },
+  "queries": {
+    "vat_draft": {
+      "fields": {
+        "name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New TAX Rate"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "description": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New TAX Rate"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Description"
+            }
+          ],
+          "read": "native_text"
+        },
+        "code": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New TAX Rate"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "VAT code (E-Invoice)"
+            }
+          ],
+          "read": "value",
+          "transform": "vat_code"
+        },
+        "value": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New TAX Rate"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Value"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        }
+      }
+    },
+    "vat": {
+      "fields": {
+        "name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_vat.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "description": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_vat.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Description"
+            }
+          ],
+          "read": "native_text"
+        },
+        "code": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_vat.name}"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "VAT code (E-Invoice)"
+            }
+          ],
+          "read": "value",
+          "transform": "vat_code"
+        },
+        "value": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_vat.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Value"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        }
+      }
+    },
+    "vat_search": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "VATs"
+        },
+        {
+          "control_type": "Edit",
+          "to_right_of": "Search:"
+        }
+      ],
+      "read": "native_text"
+    },
+    "vat_results": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "VATs"
+        },
+        {
+          "control_type": "Pane",
+          "leaf": true
+        }
+      ],
+      "clipboard_rows": {
+        "columns": [
+          "standard",
+          "name",
+          "description",
+          "value"
+        ],
+        "copy_scope": "all_rows",
+        "format": "raw_tsv",
+        "row_geometry": {
+          "width": 1489,
+          "header_height": 25,
+          "row_height": 25,
+          "column_x": 187,
+          "header_sha256": "62f1718b94899e901fc319975c53e26df52718121a3c74514d478edee4e5aae1"
+        },
+        "keyboard_selection": "ctrl_home_down_double_click",
+        "empty_snapshot": {
+          "width": 1489,
+          "height": 304,
+          "sha256": "9d8e8ca221872fb0a00f8cf555e1e67fa3939b738783800465b0941f52df4e97"
+        }
+      }
+    },
+    "payment_draft": {
+      "fields": {
+        "name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "description": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Description"
+            }
+          ],
+          "read": "native_text"
+        },
+        "account": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Account"
+            }
+          ],
+          "read": "native_text"
+        },
+        "code": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "!editorPaymentPaymentcode!"
+            }
+          ],
+          "read": "value"
+        },
+        "discount": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Cash discount"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "discount_days": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Discount Days"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "net_days": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Net Days"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "unpaid_text": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Text 'unpaid'"
+            }
+          ],
+          "read": "native_text"
+        },
+        "deposit_text": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Text 'deposit'"
+            }
+          ],
+          "read": "native_text"
+        },
+        "paid_text": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Term of Payment"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Text 'paid'"
+            }
+          ],
+          "read": "native_text"
+        },
+        "standard": {
+          "same_text": [
+            {
+              "path": [
+                {
+                  "control_type": "Pane",
+                  "title": "New Term of Payment"
+                },
+                {
+                  "control_type": "Edit",
+                  "title": "",
+                  "to_right_of": "Standard"
+                }
+              ],
+              "read": "native_text"
+            },
+            {
+              "path": [
+                {
+                  "control_type": "Pane",
+                  "title": "New Term of Payment"
+                },
+                {
+                  "control_type": "Edit",
+                  "title": "Name"
+                }
+              ],
+              "read": "native_text"
+            }
+          ]
+        }
+      }
+    },
+    "payment": {
+      "fields": {
+        "name": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Name"
+            }
+          ],
+          "read": "native_text"
+        },
+        "description": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Description"
+            }
+          ],
+          "read": "native_text"
+        },
+        "account": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Account"
+            }
+          ],
+          "read": "native_text"
+        },
+        "code": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "!editorPaymentPaymentcode!"
+            }
+          ],
+          "read": "value"
+        },
+        "discount": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Cash discount"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "discount_days": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Discount Days"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "net_days": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Net Days"
+            }
+          ],
+          "read": "native_text",
+          "transform": "decimal"
+        },
+        "unpaid_text": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Text 'unpaid'"
+            }
+          ],
+          "read": "native_text"
+        },
+        "deposit_text": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Text 'deposit'"
+            }
+          ],
+          "read": "native_text"
+        },
+        "paid_text": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${selected_payment.name}"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Text 'paid'"
+            }
+          ],
+          "read": "native_text"
+        },
+        "standard": {
+          "same_text": [
+            {
+              "path": [
+                {
+                  "control_type": "Pane",
+                  "title": "${selected_payment.name}"
+                },
+                {
+                  "control_type": "Edit",
+                  "title": "",
+                  "to_right_of": "Standard"
+                }
+              ],
+              "read": "native_text"
+            },
+            {
+              "path": [
+                {
+                  "control_type": "Pane",
+                  "title": "${selected_payment.name}"
+                },
+                {
+                  "control_type": "Edit",
+                  "title": "Name"
+                }
+              ],
+              "read": "native_text"
+            }
+          ]
+        }
+      }
+    },
+    "payment_search": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "terms of payment"
+        },
+        {
+          "control_type": "Edit",
+          "to_right_of": "Search:"
+        }
+      ],
+      "read": "native_text"
+    },
+    "payment_results": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "terms of payment"
+        },
+        {
+          "control_type": "Pane",
+          "leaf": true
+        }
+      ],
+      "clipboard_rows": {
+        "columns": [
+          "standard",
+          "name",
+          "description",
+          "discount",
+          "discount_days",
+          "net_days"
+        ],
+        "copy_scope": "all_rows",
+        "format": "raw_tsv",
+        "row_geometry": {
+          "width": 1489,
+          "header_height": 25,
+          "row_height": 25,
+          "column_x": 187,
+          "header_sha256": "bd1b6ad86ac72b657d47e017a7e5e2b43805906ff8f7d8453bee5069acbdaf96"
+        },
+        "keyboard_selection": "ctrl_home_down_double_click",
+        "empty_snapshot": {
+          "width": 1489,
+          "height": 304,
+          "sha256": "988788fc7a74c3fbbb90075eb19fd443c47e1a56d706f11edfdc7beef3ed653a"
+        }
+      }
+    }
+  }
+}

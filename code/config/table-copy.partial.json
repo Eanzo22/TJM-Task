@@ -1,0 +1,33 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 10,
+  "observation": "2026-10-04: UIA focus plus Ctrl+A/Ctrl+C copied the Products list's single saved test row. Seven TSV fields included a hidden picture field and a raw VAT object string. Off-screen result completeness and keyboard row activation remain unverified; inspect-table only.",
+  "actions": {},
+  "queries": {
+    "product_list": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "Products"
+        },
+        {
+          "control_type": "Pane",
+          "leaf": true
+        }
+      ],
+      "clipboard_rows": {
+        "columns": [
+          "sku",
+          "name",
+          "description",
+          "stock",
+          "gross",
+          "vat_raw"
+        ],
+        "copy_scope": "unverified",
+        "format": "raw_tsv"
+      }
+    }
+  }
+}

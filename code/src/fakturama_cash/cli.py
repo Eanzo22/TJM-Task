@@ -29,7 +29,7 @@ def parser():
         p.add_argument("image", type=Path)
         p.add_argument("--runs", type=Path, default=Path(os.environ.get("FAKTURAMA_RUNS", "runs")))
         if command == "run":
-            p.add_argument("--profile", type=Path, default=Path(os.environ.get("FAKTURAMA_UI_PROFILE", "config/live.json")))
+            p.add_argument("--profile", type=Path, default=Path(os.environ.get("FAKTURAMA_UI_PROFILE", "config/live-profile.json")))
     p = sub.add_parser("validate-json", parents=[progress_options], help="Validate extracted JSON or a synthetic test fixture; never writes to Fakturama")
     p.add_argument("json", type=Path)
     p = sub.add_parser("diagnose", parents=[progress_options], help="Read-only capture of the Fakturama UI tree and screenshot")
@@ -39,6 +39,11 @@ def parser():
                        help="Read the open New Order header only; does not fill or save it")
     p.add_argument("--profile", type=Path, default=Path("config/order-header.partial.json"))
     p.add_argument("--out", type=Path, default=Path("evidence/private/order-header-inspection"))
+    p = sub.add_parser("inspect-table", parents=[progress_options],
+                       help="Read a mapped grid through UIA focus and Ctrl+A/Ctrl+C; never activates a row or saves")
+    p.add_argument("query", help="Name of a clipboard_rows query in the profile")
+    p.add_argument("--profile", type=Path, required=True)
+    p.add_argument("--out", type=Path, default=Path("evidence/private/table-inspection"))
     p = sub.add_parser("test-order-header", parents=[progress_options],
                        help="Fill and verify four header fields on an open test Order; never saves")
     p.add_argument("--expected-number", required=True, help="Exact proposed number seen in inspect-order")
@@ -105,6 +110,30 @@ def execute(args, progress):
                                   "business_writes": False, "live_profile_calibrated": False})
             progress.finish("Order header read; no fields changed or saved")
             print(json.dumps({"status": "observed_order_header", "header": header, "evidence": str(evidence)}))
+            return 0
+        if args.command == "inspect-table":
+            from .clipboard_table import validate_copy_config
+            profile = load_profile(args.profile)
+            spec = profile.get("queries", {}).get(args.query, {})
+            # Like inspect-order, this accepts partial profiles for calibration,
+            # but cannot run navigation recipes or arbitrary business actions.
+            if (not {"path", "clipboard_rows"} <= set(spec)
+                    or not set(spec) <= {"path", "clipboard_rows", "total_count", "empty_indicator", "empty_text"}
+                    or any(not set(spec[k]) <= {"path", "read", "transform"}
+                           for k in ("total_count", "empty_indicator") if k in spec)):
+                raise ReviewRequired("inspect-table requires a copy-only table query", stage="UI inspection")
+            validate_copy_config(spec["clipboard_rows"], allow_unverified=True)
+            args.out.mkdir(parents=True, exist_ok=True)
+            adapter = UIAAdapter(profile)
+            progress.update("Focusing the mapped grid and copying its rows; clipboard contents will be replaced")
+            adapter.prepare_window()
+            rows = adapter.inspect_table(args.query)
+            evidence = args.out / (uuid4().hex + ".json")
+            record = {"status": "observed_table", "query": args.query, "rows": rows,
+                      "business_writes": False, "copy_scope_requires_live_calibration": True}
+            write_json(evidence, record)
+            progress.finish("Table copied and parsed; no row activated or record saved")
+            print(json.dumps({**record, "evidence": str(evidence)}))
             return 0
         if args.command == "test-order-header":
             from datetime import date

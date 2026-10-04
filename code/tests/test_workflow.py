@@ -74,6 +74,39 @@ def test_persisted_reference_and_customer_stop_before_open(order, tmp_path):
     assert "open_order" not in ui.actions
 
 
+def test_manual_recipient_reference_also_blocks_duplicate(order, tmp_path):
+    ui = FakeUI(order)
+    ui.documents.append(dict(reference=order.external_reference, customer=order.debtor.delivery.name))
+    with pytest.raises(ReviewRequired, match='previous transaction'):
+        run(order, ui, tmp_path)
+    assert 'open_order' not in ui.actions
+
+
+@pytest.mark.parametrize('fail_update', [False, True])
+def test_initial_save_address_rebinding_gets_one_distinct_update(order, tmp_path, fail_update):
+    class RebindingUI(FakeUI):
+        def act(self, name, ctx):
+            super().act(name, ctx)
+            if name == 'save_order':
+                count = self.actions.count(name)
+                if count == 1:
+                    self.order['delivery_address']['name'] = 'Master contact formatting'
+                elif fail_update:
+                    raise TimeoutError('Update accepted, confirmation unavailable')
+    ui = RebindingUI(order, existing=True)
+    if fail_update:
+        with pytest.raises(ReviewRequired):
+            run(order, ui, tmp_path)
+        assert 'create_linked_invoice' not in ui.actions
+    else:
+        run(order, ui, tmp_path)
+        assert ui.invoice['delivery_address'] == order.debtor.delivery.model_dump(mode='json')
+    assert ui.actions.count('save_order') == 2
+    checkpoint = json.loads((tmp_path / 'imagehash/checkpoint.json').read_text())
+    assert 'save_order' in checkpoint['actions'] and 'save_order:addresses' in checkpoint['actions']
+    assert 'fill_order_addresses:persisted' in checkpoint['actions']
+
+
 def test_duplicate_debtor_does_not_create(order, tmp_path):
     ui = FakeUI(order, existing=True)
     ui.debtors *= 2
@@ -113,7 +146,7 @@ def test_exclusive_run_lock(tmp_path, order):
 def test_conflicting_payment_terms_stop_before_debtor(order, tmp_path):
     ui = FakeUI(order)
     ui.payments = [{**payment_definition(order.payment.method), "net_days": "30"}]
-    with pytest.raises(ReviewRequired, match="conflicting"):
+    with pytest.raises(ReviewRequired, match="do not match"):
         run(order, ui, tmp_path)
     assert "new_debtor" not in ui.actions
     assert "new_payment" not in ui.actions
@@ -121,16 +154,41 @@ def test_conflicting_payment_terms_stop_before_debtor(order, tmp_path):
 
 def test_equivalent_vat_decimal_is_reused(order, tmp_path):
     ui = FakeUI(order)
-    ui.vats = [{"name": "VAT 19%", "value": "19.00", "code": "S"}]
+    ui.vats = [{"name": "VAT 19%", "value": "19.00", "code": "S", "description": "Standard tax"}]
     run(order, ui, tmp_path)
     assert "new_vat" not in ui.actions
+    assert ui.product["vat_description"] == "Standard tax"
+
+
+def test_missing_vat_description_stops_before_opening_product(order, tmp_path):
+    ui = FakeUI(order)
+    ui.vats = [{"name": "VAT 19%", "value": "19", "code": "S"}]
+    with pytest.raises(ReviewRequired, match="description is unreadable"):
+        run(order, ui, tmp_path)
+    assert "new_product" not in ui.actions
+
+
+def test_vat_code_is_verified_in_editor_even_when_list_omits_it(order, tmp_path):
+    class ThinVatList(FakeUI):
+        def read(self, name, ctx):
+            if name == "vat_results":
+                return [{"name": row["name"], "value": row["value"]} for row in self.vats]
+            if name == "vat":
+                return self.vats[0]
+            return super().read(name, ctx)
+    ui = ThinVatList(order)
+    ui.vats = [{"name": "VAT 19%", "value": "19", "code": "Z", "description": "Wrong tax category"}]
+    with pytest.raises(ReviewRequired, match="do not match"):
+        run(order, ui, tmp_path)
+    assert "inspect_vat" in ui.actions
+    assert "new_product" not in ui.actions
 
 
 def test_wrong_delivery_address_stops(order, tmp_path):
     class WrongAddress(FakeUI):
         def act(self, name, ctx):
             super().act(name, ctx)
-            if name == "select_debtor":
+            if name == "fill_order_addresses":
                 self.order["delivery_address"] = self.order["invoice_address"]
     ui = WrongAddress(order, existing=True)
     with pytest.raises(ReviewRequired):

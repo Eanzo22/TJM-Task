@@ -1,0 +1,741 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 30,
+  "observation": "2026-10-02 mapping-order capture. User confirmed live header reads; writes still await controlled live verification. Requires exactly one visible New Order pane. Dynamic SWT IDs and screenshot coordinates are not selectors.",
+  "actions": {
+    "fill_order_header": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "Date"
+          }
+        ],
+        "operation": "set",
+        "value": "${input.order_date}",
+        "format": "date_english",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ],
+        "operation": "type_text",
+        "value": "${input.external_reference}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "No."
+          }
+        ]
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": ""
+          }
+        ],
+        "operation": "select_option",
+        "value": "Net"
+      },
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "VAT"
+          }
+        ],
+        "operation": "select_option",
+        "value": "With VAT"
+      }
+    ],
+    "fill_order_date": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "Date"
+          }
+        ],
+        "operation": "set",
+        "value": "${input.order_date}",
+        "format": "date_english",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      }
+    ],
+    "fill_line": [
+      {
+        "operation": "edit_item_cell",
+        "query": "items_raw",
+        "index": "${index}",
+        "sku": "${line.sku}",
+        "column": "quantity",
+        "value": "${line.quantity}",
+        "layout": {
+          "width": 1450,
+          "header_height": 25,
+          "row_height": 25,
+          "header_sha256": "daa2dbb14055c84c4525add5b654605675142f65e8ff32662be03b323630cd26",
+          "columns": {
+            "quantity": 112,
+            "name": 487,
+            "vat": 737,
+            "unit_price": 862,
+            "discount": 987
+          }
+        },
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "operation": "edit_item_cell",
+        "query": "items_raw",
+        "index": "${index}",
+        "sku": "${line.sku}",
+        "column": "name",
+        "value": "${line.description}",
+        "layout": {
+          "width": 1450,
+          "header_height": 25,
+          "row_height": 25,
+          "header_sha256": "daa2dbb14055c84c4525add5b654605675142f65e8ff32662be03b323630cd26",
+          "columns": {
+            "quantity": 112,
+            "name": 487,
+            "vat": 737,
+            "unit_price": 862,
+            "discount": 987
+          }
+        },
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "operation": "edit_item_cell",
+        "query": "items_raw",
+        "index": "${index}",
+        "sku": "${line.sku}",
+        "column": "vat",
+        "value": "${line.vat_percent}",
+        "layout": {
+          "width": 1450,
+          "header_height": 25,
+          "row_height": 25,
+          "header_sha256": "daa2dbb14055c84c4525add5b654605675142f65e8ff32662be03b323630cd26",
+          "columns": {
+            "quantity": 112,
+            "name": 487,
+            "vat": 737,
+            "unit_price": 862,
+            "discount": 987
+          }
+        },
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "operation": "edit_item_cell",
+        "query": "items_raw",
+        "index": "${index}",
+        "sku": "${line.sku}",
+        "column": "unit_price",
+        "value": "${line.unit_net}",
+        "layout": {
+          "width": 1450,
+          "header_height": 25,
+          "row_height": 25,
+          "header_sha256": "daa2dbb14055c84c4525add5b654605675142f65e8ff32662be03b323630cd26",
+          "columns": {
+            "quantity": 112,
+            "name": 487,
+            "vat": 737,
+            "unit_price": 862,
+            "discount": 987
+          }
+        },
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "operation": "edit_item_cell",
+        "query": "items_raw",
+        "index": "${index}",
+        "sku": "${line.sku}",
+        "column": "discount",
+        "value": "${line.discount_percent}",
+        "layout": {
+          "width": 1450,
+          "header_height": 25,
+          "row_height": 25,
+          "header_sha256": "daa2dbb14055c84c4525add5b654605675142f65e8ff32662be03b323630cd26",
+          "columns": {
+            "quantity": 112,
+            "name": 487,
+            "vat": 737,
+            "unit_price": 862,
+            "discount": 987
+          }
+        },
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      }
+    ],
+    "fill_invoice_payment": [
+      {
+        "operation": "select_option",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "",
+            "to_right_of": {
+              "control_type": "CheckBox",
+              "title": "paid"
+            }
+          }
+        ],
+        "value": "${invoice_payment.payment_method}"
+      },
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "CheckBox",
+            "title": "paid"
+          }
+        ],
+        "value": "${invoice_payment.paid}"
+      },
+      {
+        "operation": "set",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "Edit",
+            "title": "",
+            "to_right_of": "at"
+          }
+        ],
+        "value": "${invoice_payment.payment_date}",
+        "format": "date_english",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ],
+        "when": "${invoice_payment.paid}"
+      },
+      {
+        "operation": "type_text",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Value"
+          }
+        ],
+        "value": "${invoice_payment.value}",
+        "read": "native_text",
+        "transform": "decimal",
+        "decimal_separator": ",",
+        "commit_path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ],
+        "when": "${invoice_payment.paid}"
+      }
+    ],
+    "save_order": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Invoice address"
+          }
+        ]
+      },
+      {
+        "operation": "focus",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ]
+      }
+    ],
+    "save_invoice": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Invoice address"
+          }
+        ]
+      },
+      {
+        "operation": "focus",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Invoice"
+          },
+          {
+            "control_type": "Edit",
+            "title": "Cust.Ref."
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Button",
+            "title": "Save the current contents"
+          }
+        ]
+      }
+    ],
+    "create_linked_invoice": [
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "${order_no}"
+          },
+          {
+            "control_type": "Button",
+            "title": "Invoice"
+          }
+        ]
+      }
+    ]
+  },
+  "queries": {
+    "order_header": {
+      "fields": {
+        "no": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Order"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "No."
+            }
+          ],
+          "read": "value"
+        },
+        "date": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Order"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "Date"
+            }
+          ],
+          "read": "value",
+          "transform": "date"
+        },
+        "reference": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Order"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Cust.Ref."
+            }
+          ],
+          "read": "value"
+        },
+        "price_mode": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Order"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": ""
+            }
+          ],
+          "read": "value"
+        },
+        "vat_mode": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Order"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "VAT"
+            }
+          ],
+          "read": "value"
+        }
+      }
+    },
+    "items_raw": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "New Order"
+        },
+        {
+          "control_type": "Pane",
+          "to_right_of": "Items"
+        },
+        {
+          "control_type": "Pane",
+          "direct": true
+        }
+      ],
+      "clipboard_rows": {
+        "columns": [
+          "quantity",
+          "sku",
+          "picture",
+          "name",
+          "description",
+          "vat_raw",
+          "unit_price",
+          "discount_raw",
+          "line_price"
+        ],
+        "copy_scope": "unverified",
+        "format": "raw_tsv"
+      }
+    },
+    "invoice_methods": {
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "New Invoice"
+        },
+        {
+          "control_type": "ComboBox",
+          "title": "",
+          "to_right_of": {
+            "control_type": "CheckBox",
+            "title": "paid"
+          }
+        }
+      ],
+      "read": "options"
+    },
+    "invoice_payment_fields": {
+      "fields": {
+        "payment_method": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "",
+              "to_right_of": {
+                "control_type": "CheckBox",
+                "title": "paid"
+              }
+            }
+          ],
+          "read": "value"
+        },
+        "paid": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "CheckBox",
+              "title": "paid"
+            }
+          ],
+          "read": "toggle"
+        },
+        "payment_date": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "at"
+            }
+          ],
+          "read": "value",
+          "transform": "date"
+        },
+        "value": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Value"
+            }
+          ],
+          "read": "value",
+          "transform": "decimal"
+        }
+      }
+    },
+    "invoice_header": {
+      "fields": {
+        "no": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "No."
+            }
+          ],
+          "read": "value"
+        },
+        "reference": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "Cust.Ref."
+            }
+          ],
+          "read": "value"
+        },
+        "price_mode": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "",
+              "to_right_of": "Date"
+            }
+          ],
+          "read": "value"
+        },
+        "vat_mode": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "ComboBox",
+              "title": "VAT"
+            }
+          ],
+          "read": "value"
+        },
+        "invoice_date": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "Date"
+            }
+          ],
+          "read": "value",
+          "transform": "date"
+        },
+        "service_date": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "Service date"
+            }
+          ],
+          "read": "value",
+          "transform": "date"
+        },
+        "order_date": {
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "New Invoice"
+            },
+            {
+              "control_type": "Edit",
+              "title": "",
+              "to_right_of": "Order Date"
+            }
+          ],
+          "read": "value",
+          "transform": "date"
+        }
+      }
+    }
+  }
+}

@@ -13,6 +13,8 @@ class FakeUI:
         self.debtor = {}
         self.product = {}
         self.payments = []
+        self.payment_draft = {}
+        self.vat_draft = {}
         self.vats = []
         self.products = []
         d = order.debtor
@@ -35,6 +37,8 @@ class FakeUI:
             self.order = dict(no="TEST-ORDER-01", items=[])
         elif name == "fill_order_header":
             self.order.update(date=inp["order_date"], reference=inp["external_reference"], price_mode="Net", vat_mode="With VAT")
+        elif name == "fill_payment":
+            self.payment_draft = deepcopy(ctx["payment_definition"])
         elif name == "save_payment":
             self.payments.append(deepcopy(ctx["payment_definition"]))
         elif name == "new_debtor":
@@ -47,6 +51,10 @@ class FakeUI:
                                      zip=d["billing"]["zip"], city=d["billing"]["city"]))
         elif name == "select_debtor":
             self.order.update(invoice_address=deepcopy(inp["debtor"]["billing"]), delivery_address=deepcopy(inp["debtor"]["delivery"]))
+        elif name == 'fill_order_addresses':
+            self.order.update(invoice_address=deepcopy(inp['debtor']['billing']), delivery_address=deepcopy(inp['debtor']['delivery']))
+        elif name == "fill_vat":
+            self.vat_draft = deepcopy(ctx["vat_definition"])
         elif name == "save_vat":
             self.vats.append(deepcopy(ctx["vat_definition"]))
         elif name == "fill_product":
@@ -60,6 +68,7 @@ class FakeUI:
         elif name == "fill_order_totals":
             self.order.update(net=inp["source_net"], vat=inp["source_vat"], total=inp["source_total"], discount="0", shipping="0")
         elif name == "save_order":
+            self.documents = [r for r in self.documents if not (r.get('type') == 'Order' and r.get('no') == self.order['no'])]
             self.documents.append({"type": "Order", "no": self.order["no"], "date": self.order["date"],
                 "reference": inp["external_reference"], "company": inp["debtor"]["company"], "state": "open", "total": inp["source_total"]})
         elif name == "create_linked_invoice":
@@ -77,10 +86,13 @@ class FakeUI:
 
     def read(self, name, ctx):
         values = {"environment": {"currency": "EUR"}, "documents": self.documents,
-                  "order": self.order, "invoice": self.invoice, "debtor": self.debtor,
+                  "order": self.order, "order_header": self.order, 'order_addresses': self.order,
+                  "invoice": self.invoice, "debtor": self.debtor,
                   "debtor_results": self.debtors, "payment_results": self.payments,
                   "product_results": [r for r in self.products if r["sku"] == ctx.get("line", {}).get("sku")],
                   "vat_results": self.vats, "product": self.product, "invoice_methods": self.methods}
+        values.update(payment_draft=self.payment_draft, vat_draft=self.vat_draft,
+                      payment=ctx.get("selected_payment"), vat=ctx.get("selected_vat"))
         if name == "line":
             return deepcopy(self.order["items"][ctx["index"]])
         return deepcopy(values[name])

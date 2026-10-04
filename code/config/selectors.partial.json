@@ -1,0 +1,274 @@
+{
+  "calibrated": false,
+  "window_title_re": "^Fakturama - .*",
+  "timeout_seconds": 30,
+  "observation": "2026-10-04: six product and nine debtor raw TSV columns. Product Ctrl+A copies off-screen rows. Debtor requires a bounded single-row walk. Both selected rows activated through verified double-click; Enter failed. Empty-grid snapshots observed at recorded sizes.",
+  "actions": {
+    "open_product_selector": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Image",
+            "below_label": "Items"
+          }
+        ],
+        "operation": "click_bounds",
+        "wait_query": "product_search"
+      }
+    ],
+    "search_product": [
+      {
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          },
+          {
+            "control_type": "Edit",
+            "to_right_of": "Search:"
+          }
+        ],
+        "operation": "set_search",
+        "value": "",
+        "commit_path": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          },
+          {
+            "control_type": "Button",
+            "title": "Cancel"
+          }
+        ],
+        "read": "native_text"
+      }
+    ],
+    "cancel_product_selector": [
+      {
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          },
+          {
+            "control_type": "Button",
+            "title": "Cancel"
+          }
+        ],
+        "operation": "invoke",
+        "wait_absent": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          }
+        ]
+      }
+    ],
+    "select_product": [
+      {
+        "operation": "select_copied_row",
+        "query": "product_results",
+        "value": "${selected_product}",
+        "wait_absent": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          }
+        ]
+      }
+    ],
+    "open_debtor_selector": [
+      {
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "New Order"
+          },
+          {
+            "control_type": "Image",
+            "below_label": "Addresses"
+          }
+        ],
+        "operation": "click_bounds",
+        "wait_query": "debtor_search"
+      }
+    ],
+    "search_debtor": [
+      {
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          },
+          {
+            "control_type": "Edit",
+            "to_right_of": "Search:"
+          }
+        ],
+        "operation": "type_text",
+        "value": "${input.debtor.company}",
+        "read": "native_text",
+        "commit_path": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          },
+          {
+            "control_type": "Button",
+            "title": "Cancel"
+          }
+        ]
+      }
+    ],
+    "cancel_debtor_selector": [
+      {
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          },
+          {
+            "control_type": "Button",
+            "title": "Cancel"
+          }
+        ],
+        "operation": "invoke",
+        "wait_absent": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          }
+        ]
+      }
+    ],
+    "select_debtor": [
+      {
+        "operation": "select_copied_row",
+        "query": "debtor_results",
+        "value": "${selected_debtor}",
+        "wait_absent": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          }
+        ]
+      }
+    ]
+  },
+  "queries": {
+    "product_search": {
+      "path": [
+        {
+          "control_type": "Window",
+          "title": "Select a product"
+        },
+        {
+          "control_type": "Edit",
+          "to_right_of": "Search:"
+        }
+      ],
+      "read": "native_text"
+    },
+    "product_results": {
+      "path": [
+        {
+          "control_type": "Window",
+          "title": "Select a product"
+        },
+        {
+          "control_type": "Pane",
+          "below_label": "Search:"
+        }
+      ],
+      "clipboard_rows": {
+        "columns": [
+          "sku",
+          "name",
+          "description",
+          "stock",
+          "gross",
+          "vat_raw"
+        ],
+        "copy_scope": "all_rows",
+        "empty_snapshot": {
+          "width": 744,
+          "height": 392,
+          "sha256": "e17dce1b04e8f8598d22bc0b0d7bf24b248267591b6301dac6072c89bb163eb4"
+        },
+        "format": "raw_tsv",
+        "keyboard_selection": "ctrl_home_down_double_click",
+        "row_geometry": {
+          "header_height": 25,
+          "row_height": 25,
+          "column_x": 187,
+          "width": 744,
+          "header_sha256": "5493bf984ea6a2f267142ff4eb7c17a480204725a7fc91c49179ba186914c274"
+        }
+      }
+    },
+    "debtor_search": {
+      "path": [
+        {
+          "control_type": "Window",
+          "title": "Select the address"
+        },
+        {
+          "control_type": "Edit",
+          "to_right_of": "Search:"
+        }
+      ],
+      "read": "native_text"
+    },
+    "debtor_results": {
+      "path": [
+        {
+          "control_type": "Window",
+          "title": "Select the address"
+        },
+        {
+          "control_type": "Pane",
+          "below_label": "Search:"
+        }
+      ],
+      "clipboard_rows": {
+        "columns": [
+          "customer_id",
+          "first_name",
+          "last_name",
+          "company",
+          "zip",
+          "city",
+          "contact_type",
+          "additional_name",
+          "local_consultant"
+        ],
+        "copy_scope": "all_rows",
+        "empty_snapshot": {
+          "width": 774,
+          "height": 396,
+          "sha256": "991d4aef1986d1984ee78378807b89f66f7f844a3752ed8e6e8c34c7e7560f18"
+        },
+        "format": "raw_tsv",
+        "row_walk": {
+          "identity": "customer_id",
+          "max_rows": 200
+        },
+        "keyboard_selection": "ctrl_home_down_double_click",
+        "row_geometry": {
+          "header_height": 25,
+          "row_height": 25,
+          "column_x": 187,
+          "width": 774,
+          "header_sha256": [
+            "828e11492faff348edba96a35135523c9248042b4ec8065b6db7164c00f1464f",
+            "7bf3e914920c3b51bccdd414c00e8bdc2a95b4e7686601d0cd43b65ff4098806"
+          ]
+        }
+      }
+    }
+  }
+}

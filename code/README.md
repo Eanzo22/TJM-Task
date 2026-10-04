@@ -2,21 +2,54 @@
 
 A guarded Python prototype for reading an order image and creating an Order followed by its linked Invoice through Fakturama's Windows UI.
 
-**Status: not yet a working live end-to-end automation.** The business workflow and safety checks are implemented and tested with a fake UI. Live accessibility discovery and raw Windows OCR succeeded. Local `gemma3:4b` is available. Image validation now uses separate item, address and non-item extraction passes; the live UI profile remains incomplete. `run` deliberately stops rather than using guessed selectors or business values.
+**Status (2026-10-04, Development):** remaining UIA implementation is complete
+for the supported English/EUR assignment path. A clean production Workflow run
+created PO000004 → INV000003 at EUR678.30 and verified both addresses, ordered
+lines, preserved dates and paid fields after reopening the Invoice. The larger
+four-line PO000003 → INV000002 also passed at EUR736.61 during development.
+Image extraction passed separately; these UI runs began with synthetic JSON.
+See [live integration evidence](../documents/implementation/live-integration-2026-10-04.md).
 
 The existing Part 1 Word design documents are preserved unchanged. The assignment remains the authoritative specification; the deviations and unfinished work below must be disclosed with this submission.
 
-Latest verification (2026-10-02): the actual source image passed three-pass
-extraction and manual field review, including the corrected delivery street and
-source customer ID. The latest automated suite passed 191 tests (2026-10-03). The user
-confirmed live Order-header reading; the first write test changed the reference and
-modes but did not retain the date. A second test confirmed focus plus whole-text
-replacement still failed. Segmented keyboard date entry now replaces that approach
-and awaits live verification; the assistant's desktop helper could not initialize. Full UI
-calibration and an actual transaction remain unfinished. See
-[remaining issues and test steps](../documents/implementation/remaining-issues-and-test-plan.md).
+The source image previously passed separate item, address and non-item extraction
+with manual field review. The Python segmented date writer now works live.
+The user authorized Germany/EUR and synthetic data in the test workspace, and the
+old mixed-currency draft was discarded with explicit permission. Latest regression
+suite: **286 passed**. Private live evidence stays outside Git.
 
 ## Setup
+
+The adapter reads SWT grids through UIA focus and Copy. Product results have six
+raw TSV columns; debtor results have nine and need a bounded single-row walk.
+Every selected row is checked before double-click activation. Definitions are
+inspected in their editors because list columns omit important fields. Documents
+reads explicitly select Orders and Invoices; reopening the view retains filters.
+Workflow preflight rejects dirty editors and an uncalibrated profile.
+
+With the Products list open, inspect its copied data without activating a row or
+saving (this replaces the system clipboard):
+
+```bat
+cd /d "D:\TJM Task\Implementation\TJM-Task\code"
+..\.venv\Scripts\python.exe -m fakturama_cash.cli inspect-table product_list --profile config/table-copy.partial.json
+```
+
+This partial mapping deliberately uses `copy_scope: unverified`; it cannot be
+used by the business workflow. See [UI profile details](../documents/implementation/ui-profile.md)
+for the small new operations and the remaining calibration requirements.
+
+Compose the local profile from the reviewed component mappings:
+
+```bat
+..\.venv\Scripts\python.exe scripts\build_live_profile.py
+```
+
+This defaults to `calibrated: false`. `--calibrated` confirms that the component
+mappings have been checked in the target English/EUR test workspace; it does not
+claim a successful integrated transaction. The generated `config/live-profile.json`
+is ignored by Git. `scripts/run_live_smoke.py` runs a CODEX-labelled synthetic JSON
+fixture through the same journal and workflow, without repeating image extraction.
 
 All commands below are for **Windows CMD**, not PowerShell. Setup has three separate
 parts: Python dependencies, OCR + a running vision model, and a calibrated Fakturama
@@ -32,7 +65,7 @@ UI. Installing Python packages alone does not provide the model or complete the 
 | Windows English (`en-US`) OCR language support | The code explicitly requests this language; pip does not install Windows language capabilities |
 | Ollama plus the downloaded **vision-capable** `gemma3:4b` model | Produces structured fields from the order image; a text-only model is insufficient |
 | Original readable order image and writable local folders | Input plus private extraction, diagnostic and checkpoint evidence |
-| Complete, live-verified UI profile | Required for the full Order-to-Invoice run; **not supplied yet** |
+| Complete, live-verified UI profile | Generate and review `config/live-profile.json` from the supplied component mappings |
 
 Use an unlocked interactive desktop, with Fakturama and Python at the same privilege
 level. Back up Fakturama data and use a disposable workspace, not production data.
@@ -47,7 +80,7 @@ The shared virtual environment is one level above it. Create it only if it does
 not already exist:
 
 ```bat
-cd /d "D:\TJM Task\code"
+cd /d "D:\TJM Task\Implementation\TJM-Task\code"
 py -3.12 --version
 if not exist ..\.venv\Scripts\python.exe py -3.12 -m venv ..\.venv
 ..\.venv\Scripts\python.exe -m pip install -e ".[test,ocr]"
@@ -100,7 +133,7 @@ chat and the Python `ollama` package are not needed. See the
 In the CMD window that will run the project:
 
 ```bat
-cd /d "D:\TJM Task\code"
+cd /d "D:\TJM Task\Implementation\TJM-Task\code"
 set "FAKTURAMA_VISION_URL=http://localhost:11434/api/chat"
 set "FAKTURAMA_VISION_MODEL=gemma3:4b"
 set FAKTURAMA_VISION_MODEL
@@ -167,14 +200,14 @@ The partial-profile check is **expected to fail** with missing mappings. Follow
 [Order-header checks](../documents/implementation/order-header-mapping.md) to verify
 controls in small groups. Header success alone is not enough: Debtor/Product
 selectors, complete result tables, addresses, payments/VAT, Order/Invoice fields,
-linkage and persisted-state verification still need complete live mappings.
+linkage and persisted-state verification use the composed mappings described above.
 
-Only after creating and live-verifying `config\live.json`, run these commands in
+Only after creating and live-verifying `config\live-profile.json`, run these commands in
 the same CMD session configured above. Run the second only if the first succeeds:
 
 ```bat
-..\.venv\Scripts\fakturama-cash.exe check-profile config\live.json
-..\.venv\Scripts\fakturama-cash.exe run "%ORDER_IMAGE%" --profile config\live.json
+..\.venv\Scripts\fakturama-cash.exe check-profile config\live-profile.json
+..\.venv\Scripts\fakturama-cash.exe run "%ORDER_IMAGE%" --profile config\live-profile.json
 ```
 
 `check-profile` checks configuration completeness, not live correctness. Do not set
@@ -242,7 +275,7 @@ moves focus to the reference without changing it and verifies the retained date.
 An unreadable selection or unexpected format stops rather than guessing keystrokes.
 Both modes stop if date verification fails; there is no Save, automatic retry,
 or full-workflow resume. Success is `verified_unsaved_order_header`; do not save the
-test Order. The keyboard-based fix has regression coverage but awaits a live result.
+test Order. Segmented date entry has passed live Order and payment-date checks.
 If the failed attempt began with an empty reference/Gross and stopped at date entry,
 the other fields have not been filled: inspect the header and use the normal test
 without `--date-only` instead. Do not clear or overwrite fields just to bypass a guard.
@@ -289,7 +322,7 @@ system audio availability; the result JSON and exit code remain authoritative.
 The adapter supports verified `select_tab` steps and bounded `scroll_to` navigation
 inside a specified panel, including navigation preparation for nested query field
 groups. These require observed selectors and working accessibility patterns;
-they do not complete the missing live UI profile or custom-table reader.
+the composed profile uses the separately calibrated clipboard table reader.
 See [UI calibration](../documents/implementation/ui-profile.md) for configuration.
 
 The structured extraction path makes three sequential requests to an **Ollama-compatible `/api/chat` vision endpoint**:
@@ -316,11 +349,11 @@ The document's full-page **Sales Order Input** image was available and inspected
 ### Full workflow — blocked until calibration is complete
 
 ```bat
-..\.venv\Scripts\fakturama-cash.exe check-profile config/live.json
-..\.venv\Scripts\fakturama-cash.exe run "C:\path\order.png" --profile config/live.json
+..\.venv\Scripts\fakturama-cash.exe check-profile config/live-profile.json
+..\.venv\Scripts\fakturama-cash.exe run "C:\path\order.png" --profile config/live-profile.json
 ```
 
-`run` now checks UI profile completeness before any image/model work. `config/live.json` is intentionally not supplied. Do not make the partial profile runnable merely by changing `calibrated` to true. Complete and verify all action/query mappings first; see [UI calibration](../documents/implementation/ui-profile.md).
+`run` checks UI profile completeness before image/model work. The generated `config/live-profile.json` stays local and ignored. Supplied component mappings are assembled by `scripts/build_live_profile.py`; review them for your workspace before explicit calibration. See [UI calibration](../documents/implementation/ui-profile.md).
 
 Exit code 0 means the command's reported operation completed; 2 means review is required. A successful `diagnose`, raw `ocr`, or synthetic validation is **not** a successful Order/Invoice run. Only `run` can report `complete`, after persisted-state verification.
 
@@ -335,7 +368,7 @@ a STOPPED message and the existing error JSON on stderr. No customer fields,
 model response text or authorization tokens are included in progress messages.
 
 ```cmd
-cd /d "D:\TJM Task\code"
+cd /d "D:\TJM Task\Implementation\TJM-Task\code"
 set "FAKTURAMA_VISION_URL=http://localhost:11434/api/chat"
 set "FAKTURAMA_VISION_MODEL=gemma3:4b"
 ..\.venv\Scripts\fakturama-cash.exe validate "..\documents\qa_flow_source\source_unpacked\word\media\image9.png"
@@ -384,8 +417,9 @@ flowchart TD
   H -- Yes --> J[Set line quantity/net/VAT/discount; verify]
   I --> J
   J -- More rows --> H
-  J -- All rows --> K[Verify Order; save once; verify Documents row]
-  K --> L[Create follow-up Invoice from same saved Order]
+  J -- All rows --> K[Verify Order; save; verify Documents row]
+  K --> V[Check saved addresses; distinct update if app rebinding changed them]
+  V --> L[Create follow-up Invoice from same saved Order]
   L --> M{Copied values, linkage and payment method valid?}
   M -- No --> R
   M -- Yes --> N{Source says PAID?}
@@ -400,12 +434,13 @@ Any uncertain mutation or failed verification also goes to **Stop and report rev
 
 ### Deliberate decisions and limits
 
-- **Payment dropdown refresh:** the user observed that an already-open Debtor did not see a newly saved payment method until reopened. For a missing Debtor, this implementation resolves payment first, then opens a fresh Debtor while retaining the Order. This is an explicit sequencing deviation from the brief's keep-Debtor-open instruction. No unsaved Debtor is closed or discarded. The workaround is mocked, not live-verified.
+- **Payment dropdown refresh:** the user observed that an already-open Debtor did not see a newly saved payment method until reopened. For a missing Debtor, this implementation resolves payment first, then opens a fresh Debtor while retaining the Order. This is an explicit sequencing deviation from the brief's keep-Debtor-open instruction. No unsaved Debtor is closed or discarded. The fresh dropdown accepted the newly created Bank Transfer method in the live integration.
 - **Money:** Decimal throughout; line net and Product gross round half-up to two decimals. VAT is rounded per VAT-rate subtotal. Source totals must match exactly, and the UI must independently match before saving. This policy has not yet been verified against Fakturama for mixed-rate/fractional edge cases.
 - **Input scope:** EUR only. Ambiguous three-digit decimal/grouping strings and numeric floats are rejected. PAID requires a source date; missing payment status is not treated as unpaid. Nonzero overall discount/shipping stop until their tax treatment is implemented. Unsupported payment mappings stop when creation is needed.
 - **Identity:** company, first name, last name, ZIP and city must match a single Debtor result; SKU identifies a Product. Payment terms and VAT definitions are checked for conflicts. Matching ignores whitespace/case, not punctuation. Existing product prices are not silently trusted: the transaction line is set and checked against the image.
 - **Reruns:** both image and normalized-input fingerprints are checked. Persisted same-company/reference candidates stop even if the date or total differs. Reference alone is not treated as globally unique. This conservative rule can require review for legitimate repeated references.
-- **UI:** no fixed screen coordinates. Dynamic bounds clicks are supported only for uniquely discovered UIA controls. OCR-based custom-grid reading/clicking, robust popup selection, and separate delivery-address calibration remain unfinished. The complete live workflow is consequently unavailable.
+- **UI:** scoped UIA controls and calibrated grid geometry relative to observed bounds. Custom grids use clipboard reads. Changed headings, unobserved internal grid scrolling, malformed TSV and ambiguous rows stop. This calibration supports the observed English UI and desktop scale; other layouts require review.
+- **Address persistence:** Fakturama binds a newly added Delivery tab after the first Order Save. If that replaces the source snapshot, the workflow makes one separately journalled address update and verifies it before follow-up. Unknown Save outcomes stop; there is no blind retry.
 
 ## Evidence and recovery
 
@@ -420,7 +455,7 @@ Run artifacts are private and ignored by Git:
 After a timeout, do not rerun, delete the checkpoint, or repeat Save. Inspect Fakturama's Documents list, the known numbers, source company/reference/date/total and linked documents. With a calibrated profile, this command is read-only:
 
 ```bat
-..\.venv\Scripts\fakturama-cash.exe reconcile "runs\<hash>\checkpoint.json" --profile config/live.json
+..\.venv\Scripts\fakturama-cash.exe reconcile "runs\<hash>\checkpoint.json" --profile config/live-profile.json
 ```
 
 It prints matching persisted identifiers for human inspection; it does not prove all fields or resume work. If no identifier was recorded, search manually by source details. Only remove a stale `.active-run.lock` after confirming its process ended and reconciling unfinished writes. Use one process and one run directory per Fakturama workspace; cross-directory/multi-machine locking is not implemented.
@@ -429,8 +464,8 @@ See [requirement coverage](../documents/implementation/requirements.md) and [act
 
 ## If I had 3 more hours
 
-1. **90 minutes:** finish the existing-master live path in a disposable workspace, especially complete result-grid enumeration, fresh visual grounding, editor scoping and separate delivery addresses. Verify Order-to-Invoice linkage and persisted payment fields.
+1. **90 minutes:** extend calibrated grid scrolling and verify larger catalogues, other display scales and rounding edge cases in a disposable workspace.
 2. **45 minutes:** evaluate the integrated three-pass extractor field-by-field on more images, especially addresses and unclear text. Keep uncertainty a review condition.
-3. **45 minutes:** run missing-payment/VAT/Product/Debtor and interrupted-save cases live; capture a short annotated demonstration and revise this checklist to reflect only observed results.
+3. **45 minutes:** exercise interruption recovery and unpaid transactions live; capture an annotated demonstration and update the checklist with only observed results.
 
 These are priorities, not a promise that all integration gaps fit within three hours. Reliable live execution comes before adding more features.
