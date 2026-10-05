@@ -20,7 +20,7 @@ def parser():
     # SUPPRESS lets --quiet work before or after the subcommand without one
     # parser's default overwriting the explicitly supplied value from the other.
     progress_options.add_argument("--quiet", action="store_true", default=argparse.SUPPRESS,
-                                  help="Suppress progress lines and capture sounds; preserve the final result/error")
+                                  help="Suppress progress lines and completion sounds; preserve the final result/error")
     result = argparse.ArgumentParser(description="Fakturama image-to-cash prototype; local evidence is private",
                                      parents=[progress_options])
     sub = result.add_subparsers(dest="command", required=True)
@@ -35,6 +35,12 @@ def parser():
     p = sub.add_parser("diagnose", parents=[progress_options], help="Read-only capture of the Fakturama UI tree and screenshot")
     p.add_argument("--profile", type=Path, default=Path("config/observed.partial.json"))
     p.add_argument("--out", type=Path, default=Path("evidence/private/diagnostics"))
+    p = sub.add_parser("calibrate", parents=[progress_options],
+                       help="Guided local table measurements and clipboard checks; never saves business records")
+    p.add_argument("--profile", type=Path, default=Path("config/live-profile.json"), help="Composed source mappings")
+    p.add_argument("--output", type=Path, default=Path("config/live-local.json"), help="Device-specific output profile")
+    p.add_argument("--out", type=Path, default=Path("evidence/private/calibration"), help="Private capture evidence")
+    p.add_argument("--order-editor", default="New Order", help="Exact pane title of the temporary Order used for item calibration")
     p = sub.add_parser("inspect-order", parents=[progress_options],
                        help="Read the open New Order header only; does not fill or save it")
     p.add_argument("--profile", type=Path, default=Path("config/order-header.partial.json"))
@@ -67,13 +73,16 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    with TerminalProgress(enabled=not getattr(args, "quiet", False)) as progress:
-        result = execute(args, progress)
-    # Notify only after capture/result reporting and heartbeat cleanup finish.
-    # Distinct failure tone means the user need not watch the covered terminal.
-    if args.command in ("diagnose", "test-order-header") and not getattr(args, "quiet", False):
-        capture_finished(success=result == 0)
-    return result
+    result = 2
+    try:
+        with TerminalProgress(enabled=not getattr(args, "quiet", False)) as progress:
+            result = execute(args, progress)
+        return result
+    finally:
+        # Notify after result reporting and heartbeat cleanup. Extraction,
+        # preflight and workflow failures all use the same failure tone.
+        if args.command in ("run", "validate", "diagnose", "test-order-header", "calibrate") and not getattr(args, "quiet", False):
+            capture_finished(success=result == 0)
 
 
 def execute(args, progress):
@@ -92,6 +101,17 @@ def execute(args, progress):
             evidence = adapter.capture(args.out, "fakturama")
             progress.finish("Diagnostic capture complete")
             print(json.dumps(evidence))
+            return 0
+        if args.command == "calibrate":
+            from .calibration import calibrate
+            directory = args.out / uuid4().hex
+            # calibrate creates this fresh directory before reading inputs.
+            error_path = directory / "review-required.json"
+            progress.update("Starting guided device calibration; follow CMD prompts and capture review windows")
+            result = calibrate(args.profile, args.output, directory,
+                               order_editor=args.order_editor, progress=progress.update)
+            progress.finish("Local profile calibrated; close the temporary Order without saving and clear search filters")
+            print(json.dumps(result))
             return 0
         if args.command == "inspect-order":
             progress.update("Reading the open New Order header (no filling, clicking or saving)")
@@ -203,10 +223,12 @@ def execute(args, progress):
             return 0
         progress.update("Acquiring run lock and preparing the desktop workflow")
         with Journal(args.runs, image_hash, semantic_fingerprint(order)) as journal:
+            progress.update(f"Workflow checkpoint: {journal.path}")
             ui = UIAAdapter(load_profile(args.profile))
             identifiers = Workflow(ui, journal, progress=progress.update).run(order)
         progress.finish("Workflow complete; persisted Order and Invoice verified")
         print(json.dumps({"status": "complete", "identifiers": identifiers, "evidence": str(journal.directory),
+                          "checkpoint": str(journal.path),
                           "extraction_evidence": str(directory)}))
         return 0
     except Exception as exc:

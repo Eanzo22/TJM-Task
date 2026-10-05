@@ -35,7 +35,7 @@ def validate_copy_config(config, *, allow_unverified=False):
                                or len(config["headers"]) != len(columns)
                                or not all(isinstance(h, str) for h in config["headers"])):
         raise ReviewRequired("Invalid copied table header configuration", stage="table_read")
-    if "keyboard_selection" in config and config["keyboard_selection"] not in ("ctrl_home_down_enter", "ctrl_home_down_double_click"):
+    if "keyboard_selection" in config and config["keyboard_selection"] not in ("ctrl_home_down_enter", "ctrl_home_down_double_click", "ctrl_home_down_confirm"):
         raise ReviewRequired("Unsupported table keyboard selection", stage="table_read")
     if config.get("format", "quoted_tsv") not in ("quoted_tsv", "raw_tsv"):
         raise ReviewRequired("Unsupported table copy format", stage="table_read")
@@ -151,6 +151,10 @@ def walk_table(control, config, *, is_safe, timeout):
     raise ReviewRequired("Table exceeds the bounded row limit", stage="table_read")
 
 
+class ClipboardBusy(OSError):
+    """OpenClipboard was temporarily denied; no clipboard session was opened."""
+
+
 class WindowsClipboard:
     """Do not clear the clipboard: its sequence number distinguishes new copies."""
     def sequence(self):
@@ -165,7 +169,15 @@ class WindowsClipboard:
 
     def read(self):
         import win32clipboard
-        win32clipboard.OpenClipboard()
+        import pywintypes
+        try:
+            win32clipboard.OpenClipboard()
+        except pywintypes.error as exc:
+            # pywintypes.error is not an OSError. Only this specific opening
+            # failure is retriable; other native/read/close errors propagate.
+            if exc.winerror == 5:
+                raise ClipboardBusy("Windows clipboard access is temporarily denied") from exc
+            raise
         try:
             if not win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_UNICODETEXT):
                 raise ReviewRequired("Grid did not copy Unicode text", stage="table_read")
@@ -187,6 +199,8 @@ def copy_table(control, *, is_safe, timeout, clipboard=None, select_all=True):
     before = clipboard.sequence()
     control.type_keys("^c", set_foreground=False, pause=0.05)
     deadline = time.monotonic() + timeout
+    busy_deadline = None
+    busy_error = None
     while time.monotonic() < deadline:
         if not is_safe():
             raise ReviewRequired("Table keyboard focus changed during copy", stage="table_read")
@@ -196,12 +210,21 @@ def copy_table(control, *, is_safe, timeout, clipboard=None, select_all=True):
                 raise ReviewRequired("Clipboard was updated by another application", stage="table_read")
             try:
                 text = clipboard.read()
-            except OSError:
-                time.sleep(0.05)  # Clipboard can briefly be held by the application.
+            except ClipboardBusy as exc:
+                busy_error = exc
+                now = time.monotonic()
+                if busy_deadline is None:
+                    busy_deadline = min(deadline, now + 3.0)
+                if now >= busy_deadline:
+                    break
+                time.sleep(min(0.05, busy_deadline - now))
                 continue
             if clipboard.sequence() != sequence:
                 raise ReviewRequired("Clipboard changed while reading the table", stage="table_read")
             return text
         time.sleep(0.05)
+    if busy_error is not None:
+        raise ReviewRequired("Clipboard remained busy while reading the table", stage="table_read",
+                             next_action="Wait for clipboard access to become available and inspect the open selector. No confirmation or Save was retried.") from busy_error
     raise ReviewRequired("Grid copy did not update the clipboard", stage="table_read",
                          next_action="Verify Ctrl+A/Ctrl+C support in this grid; do not treat stale clipboard text as rows.")

@@ -38,6 +38,97 @@ class Tab:
         self.selected = self.working
 
 
+@pytest.mark.parametrize('profile_source', ['master-forms', 'definitions', 'live', 'generated'])
+def test_product_creation_uses_scoped_list_button_and_waits_for_draft(setup, monkeypatch, profile_source):
+    import json
+    import runpy
+    from pathlib import Path
+
+    code = Path(__file__).resolve().parents[1]
+    if profile_source == 'generated':
+        monkeypatch.chdir(code)
+        profile = runpy.run_path(str(code / 'scripts/build_live_profile.py'))['build']()
+    else:
+        filename = 'live-profile.json' if profile_source == 'live' else profile_source + '.partial.json'
+        profile = json.loads((code / 'config' / filename).read_text(encoding='utf-8'))
+    setup.profile = profile
+    events = []
+    navigation = SimpleNamespace(is_enabled=lambda: True)
+
+    def create():
+        assert events == ['open Products list']
+        events.append('create')
+
+    button = SimpleNamespace(is_enabled=lambda: True, invoke=create)
+
+    def find(path, context):
+        if path == [{'control_type': 'Pane', 'title': 'Navigation View'},
+                    {'control_type': 'Text', 'title': 'Products'}]:
+            return navigation
+        # A global toolbar lookup could reactivate an existing master. Require
+        # the list's creation control, which requests force-new in Fakturama.
+        assert path == [{'control_type': 'Tab', 'title': 'Products'},
+                        {'control_type': 'Button', 'title': 'Create a new product'}]
+        return button
+
+    def read(name, context):
+        assert name == 'product' and events == ['open Products list', 'create']
+        events.append('draft observed')
+        return dict(name='', description='')
+
+    def click(control):
+        assert control is navigation
+        events.append('open Products list')
+
+    monkeypatch.setattr(setup, 'find', find)
+    monkeypatch.setattr(setup, 'read', read)
+    monkeypatch.setattr(ui, '_click_control', click)
+    setup.act('new_product', {})
+    assert events == ['open Products list', 'create', 'draft observed']
+
+
+@pytest.mark.parametrize('profile_source', ['live', 'generated'])
+def test_product_auto_accept_recipe_only_changes_its_checkbox_and_applies(setup, monkeypatch, profile_source):
+    import json
+    import runpy
+    from pathlib import Path
+
+    code = Path(__file__).resolve().parents[1]
+    if profile_source == 'generated':
+        monkeypatch.chdir(code)
+        profile = runpy.run_path(str(code / 'scripts/build_live_profile.py'))['build']()
+    else:
+        profile = json.loads((code / 'config/live-profile.json').read_text(encoding='utf8'))
+    setup.profile = profile
+    checked, events = [1], []
+
+    def toggle():
+        checked[0] = 0
+        events.append('uncheck')
+
+    def apply():
+        assert checked[0] == 0
+        events.append('Apply')
+
+    checkbox = SimpleNamespace(is_enabled=lambda: True, get_toggle_state=lambda: checked[0], toggle=toggle)
+    button = SimpleNamespace(is_enabled=lambda: True, invoke=apply)
+    pref = [{'control_type': 'Window', 'title': 'Preferences'}]
+    field = pref + [{'control_type': 'CheckBox', 'title': 'immediately take over a clearly found item number'}]
+
+    def find(path, context):
+        if path == field:
+            return checkbox
+        assert path == pref + [{'control_type': 'Button', 'title': 'Apply'}]
+        return button
+
+    monkeypatch.setattr(setup, 'find', find)
+    setup.act('disable_product_auto_accept', {})
+    assert events == ['uncheck', 'Apply']
+    assert profile['queries']['product_selection_settings']['fields']['auto_accept_single_product'] == dict(path=field, read='toggle')
+    assert profile['actions']['inspect_product_selection_settings'][0]['path'] == pref + [
+        {'control_type': 'TreeItem', 'title': 'Documents'}]
+
+
 def test_nested_tab_steps_reacquire_and_verify(setup, monkeypatch):
     tabs = {"outer": Tab(), "inner": Tab()}
     observations = []

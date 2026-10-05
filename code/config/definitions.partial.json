@@ -576,6 +576,7 @@
     ],
     "new_product": [
       {
+        "operation": "click_bounds",
         "path": [
           {
             "control_type": "Pane",
@@ -583,10 +584,23 @@
           },
           {
             "control_type": "Text",
-            "title": "New product"
+            "title": "Products"
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Tab",
+            "title": "Products"
+          },
+          {
+            "control_type": "Button",
+            "title": "Create a new product"
           }
         ],
-        "operation": "click_bounds"
+        "wait_query": "product"
       }
     ]
   },

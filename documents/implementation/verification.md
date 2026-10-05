@@ -1,52 +1,49 @@
-# Verification and evidence — 2026-09-29
+# Verification and evidence
 
-## What actually ran
+Updated 5 October 2026, Development. This records observed results; configuration checks and simulated tests are not described as live workflow completion.
 
-- Created a local virtual environment and installed the project editable.
-- Executed the pytest suite: **64 passed in 11.49 seconds**. Tests use synthetic JSON and a fake UI; they never submit data to Fakturama.
-- `python -m compileall -q src` completed without errors. `pip check` reported no broken requirements.
-- `validate-json tests/fixtures/synthetic_order.json` returned two items and total 678.30. This is synthetic validation, not image extraction.
-- Ran the project's `diagnose` command against the real open Fakturama instance. Captured the accessibility tree, Value/Toggle observations where supported, and a real screenshot.
-- Ran Windows English OCR on the supplied full-page Sales Order Input image. Retained raw text and word bounding boxes. No model-generated or manually corrected business data was substituted.
-- No Order, Invoice, Debtor, Payment, VAT or Product was created or saved by this implementation during live verification.
-- Attempted `run` with the actual source image and partial profile: exited with `review_required` at extraction because `FAKTURAMA_VISION_MODEL` was unset. Separately, `check-profile` listed missing action/query mappings as expected.
+## Latest image-driven transaction
 
-Test dependency versions installed: Pydantic 2.13.5, pywinauto 0.6.9, Pillow 12.3.0, pytest 9.1.1, WinRT projections 3.2.1. Installation does not prove compatibility with every Fakturama control.
+The actual source image was processed through three vision sections, then the UI workflow created **Order PO000011 → Invoice INV000005**. Existing Debtor and first Product were selected. Missing MAT-DESK-02 was created after VAT inspection, saved once, and reselected. Both source lines, addresses, and totals passed. The Order and Invoice each received one Save and passed their Documents row checks.
 
-## Annotated live diagnostic capture
+| Verified field | Persisted value |
+| --- | --- |
+| Order date | 14 July 2026 |
+| Invoice and service dates | Proposed 5 October 2026, preserved |
+| Net / VAT / Total | EUR 570.00 / 108.30 / 678.30 |
+| Payment | Bank Transfer, paid |
+| Paid date / value | 18 July 2026 / EUR 678.30 |
+| Source Order | Open, same reference and total |
 
-The original screenshot is unmodified. These captions annotate its observed state; they do not claim automation created the displayed records.
+The command stopped only at final Invoice reopening: a Documents header variant caused the calibrated row-activation guard to reject the visible selected row. After adding that exact reviewed variant, a separate read-only verification reopened INV000005 and compared all source/copy/payment fields. No New/Save action or business repair was performed. Its result is `verified_saved_workflow`; the original checkpoint remains `review_required`, unchanged. A fresh uninterrupted image run with the corrected mapping has not been claimed.
 
-![Actual existing Fakturama state, read-only diagnostic](../../code/evidence/private/diagnostics/fakturama.png)
+Private paths relative to `code/`:
 
-1. **Existing document tabs:** related Order and Invoice tabs were already open. They were not created by this run and were preserved.
-2. **Address and tax discrepancy:** the existing visible invoice showed Georgia and Free of Tax, inconsistent with the supplied image's Germany and VAT. This is a warning, not a completed result.
-3. **Amounts and payment:** the existing visible invoice displayed a dollar-denominated 570.00 total and was unpaid. The source image requires EUR with VAT and paid information. No settings or record values were changed to hide that mismatch.
-4. **Accessibility limitation:** header controls were exposed, but the captured tree had no `DataItem` controls for the visible tables. The UI adapter therefore refuses to infer that the tables contain no records.
-
-Private originals (paths relative to `code/`):
-
-- `evidence/private/diagnostics/fakturama.png`
-- `evidence/private/diagnostics/fakturama-uia.json`
-- `evidence/private/source-ocr/ocr.json`
-- `evidence/private/source-ocr/ocr.txt`
-
-These ignored files exist locally but will not appear in a clean clone. Inspect/redact and obtain permission before attaching real screenshots to an interview submission. The Markdown image will be absent in a clone without the private evidence directory.
-
-## OCR findings
-
-The OCR correctly recognized many labels, addresses and amounts, but misread a SKU suffix (`01` as `OI`), interpreted one discount incorrectly, and omitted percentage cells. Using arithmetic to guess the missing tax/discount or changing an ambiguous SKU would violate the input requirements. Raw OCR therefore remains a diagnostic, not an approved extraction path.
-
-## Live end-to-end status
-
-**Not executed successfully.** The real image is available, but the configured vision model is missing, no local model service responded, and the live UI profile is incomplete. A safe validation/preflight stop is an observed failure condition, not a successful automation demonstration. Existing related records and settings also require a disposable test workspace before business writes.
-
-## Local repository note
-
-Git was initialized, but nothing was staged or committed. Source files are ready for review; private artifacts and the existing Word files remain ignored and preserved. On this machine the new `.git` directory is owned by the sandbox account, so ordinary Git reports dubious ownership. Changing its owner was denied. A scoped command works without changing global settings:
-
-```powershell
-git -c safe.directory='D:/TJM Task' status --short
+```text
+runs/dccd74e337dfe5a5677366c004c98742d18cdb2444c5fdc90aba38ecc239ba67/
+  extractions/7778d8aff06c48d68ba25faa2b31f5d9/
+  workflows/ec864802c11943df969dee5065294eed/
+    checkpoint.json
+    post-failure-verification.json
+    post-failure-verified.png
+    post-failure-verified-uia.json
 ```
 
-Use the same scoped option for reviewed Git operations, or have the workspace owner correct the directory ownership. Do not disable Git's ownership checks globally.
+The local one-off verification script is `evidence/private/verify-existing-invoice.py`; it is not a public resume command. Evidence and source images are ignored/private and absent in a clean clone. Review customer details before sharing captures.
+
+## Earlier development evidence
+
+- PO000004 → INV000003 completed a synthetic JSON UI smoke at EUR 678.30 using older mappings. It included a second address update that the current single-Save implementation has removed. It is not proof of the current image command.
+- PO000003 → INV000002 was a staged four-line development integration at EUR 736.61, covering repeated SKUs, discounts, and outer-editor scrolling. It was not one uninterrupted production run.
+- Fresh Debtor creation and payment/VAT creation were exercised historically. The current payment-while-Debtor-open branch, missing VAT branch, UNPAID path, and second-device calibration still need targeted current live verification.
+- Live Preferences inspection confirmed the automatic single-result Product setting could be disabled and remained off after reopening Preferences.
+
+## Automated and offline checks
+
+On 5 October 2026, **414 tests passed**. These use synthetic data, mocked transports, and fake UI controls; they make no live business writes. Coverage includes schema/arithmetic, CPU request options and HTTP diagnostics, exact matching, current workflow sequence, journals, guarded search/row selection, clipboard retries, header/viewport checks, sounds, and guided calibration.
+
+The pytest run reported a cache permission warning from the inherited local `.pytest_cache`; the tests passed. The documented CMD test command uses its own local cache/temp paths. Profile completeness checks are offline and do not certify geometry, copy scope, or transaction correctness.
+
+The current live profile passed the offline completeness check, `pip check` reported no broken requirements, and all local links in the seven retained Markdown guides resolved. Git whitespace checks passed. No live business run was started for this documentation and commit pass.
+
+For current verification priorities, see [remaining work](remaining-issues-and-test-plan.md). Setup, commands, and recovery are in [code README](../../code/README.md).

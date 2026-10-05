@@ -1,5 +1,6 @@
 """Focused custom-grid tests; no real clipboard, desktop, or application writes."""
 from types import SimpleNamespace
+import sys
 
 import pytest
 
@@ -75,6 +76,29 @@ def clock(monkeypatch):
     now = [0.0]
     monkeypatch.setattr(clipboard_table.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(clipboard_table.time, "sleep", lambda duration: now.__setitem__(0, now[0] + duration))
+    return now
+
+
+@pytest.fixture
+def native_clipboard(monkeypatch):
+    # Real pywintypes exception type, mocked native calls: no desktop access.
+    error_type = pytest.importorskip('pywintypes').error
+    clipboard = clipboard_table.WindowsClipboard()
+    clipboard.number, clipboard.pid, clipboard.text = 3, 10, 'OLD\tCLIPBOARD'
+    monkeypatch.setattr(clipboard, 'sequence', lambda: clipboard.number)
+    monkeypatch.setattr(clipboard, 'owner_process', lambda: clipboard.pid)
+    calls, failures = [], []
+    def open_clipboard():
+        calls.append('open')
+        if failures:
+            raise failures.pop(0)
+    native = SimpleNamespace(OpenClipboard=open_clipboard,
+                             CloseClipboard=lambda: calls.append('close'),
+                             CF_UNICODETEXT=13,
+                             IsClipboardFormatAvailable=lambda format: True,
+                             GetClipboardData=lambda format: clipboard.text)
+    monkeypatch.setitem(sys.modules, 'win32clipboard', native)
+    return clipboard, calls, failures, native, error_type
 
 
 def test_copy_accepts_only_new_text_from_the_target_process(clock):
@@ -82,6 +106,62 @@ def test_copy_accepts_only_new_text_from_the_target_process(clock):
     grid = Grid(clipboard)
     assert copy_table(grid, is_safe=lambda: grid.focused, timeout=1, clipboard=clipboard) == "A\tTest"
     assert grid.keys == ["^a", "^c"]
+
+
+@pytest.mark.parametrize('select_all', [True, False])
+def test_native_access_denial_retries_only_read_and_closes_only_successful_open(clock, native_clipboard, select_all):
+    clipboard, calls, failures, _, error_type = native_clipboard
+    failures.extend([error_type(5, 'OpenClipboard', 'Access is denied.')] * 2)
+    grid = Grid(clipboard)
+    assert copy_table(grid, is_safe=lambda: True, timeout=120, clipboard=clipboard,
+                      select_all=select_all) == 'A\tTest'
+    assert calls == ['open', 'open', 'open', 'close']
+    assert grid.keys == (['^a', '^c'] if select_all else ['^c'])
+
+
+@pytest.mark.parametrize('timeout', [1, 120])
+def test_persistent_native_access_denial_is_bounded_and_does_not_repeat_copy(clock, native_clipboard, timeout):
+    clipboard, calls, failures, _, error_type = native_clipboard
+    failures.extend([error_type(5, 'OpenClipboard', 'Access is denied.')] * 100)
+    grid = Grid(clipboard)
+    with pytest.raises(ReviewRequired, match='Clipboard remained busy') as error:
+        copy_table(grid, is_safe=lambda: True, timeout=timeout, clipboard=clipboard)
+    assert error.value.details['stage'] == 'table_read'
+    assert clock[0] <= min(timeout, 3)
+    assert 'close' not in calls
+    assert grid.keys == ['^a', '^c']
+
+
+@pytest.mark.parametrize('change', ['focus', 'owner'])
+def test_clipboard_retry_stops_when_focus_or_ownership_changes(clock, native_clipboard, change):
+    clipboard, calls, failures, _, error_type = native_clipboard
+    failures.append(error_type(5, 'OpenClipboard', 'Access is denied.'))
+    monkey_owner = clipboard.owner_process
+    clipboard.owner_process = lambda: 999 if change == 'owner' and clock[0] > 0 else monkey_owner()
+    grid = Grid(clipboard)
+    with pytest.raises(ReviewRequired, match='focus changed|another application'):
+        copy_table(grid, is_safe=lambda: not (change == 'focus' and clock[0] > 0),
+                   timeout=120, clipboard=clipboard)
+    assert calls == ['open']
+    assert grid.keys == ['^a', '^c']
+
+
+@pytest.mark.parametrize('operation', ['OpenClipboard', 'GetClipboardData'])
+def test_other_native_errors_are_not_treated_as_clipboard_contention(clock, native_clipboard, operation):
+    clipboard, calls, failures, native, error_type = native_clipboard
+    failure = error_type(6 if operation == 'OpenClipboard' else 5, operation, 'Native failure')
+    if operation == 'OpenClipboard':
+        failures.append(failure)
+    else:
+        def fail_read(format):
+            raise failure
+        native.GetClipboardData = fail_read
+    grid = Grid(clipboard)
+    with pytest.raises(error_type):
+        copy_table(grid, is_safe=lambda: True, timeout=120, clipboard=clipboard)
+    assert calls == (['open'] if operation == 'OpenClipboard' else ['open', 'close'])
+    assert clock[0] == 0
+    assert grid.keys == ['^a', '^c']
 
 
 def test_failed_copy_never_reuses_old_clipboard_or_retries_keys(clock):
@@ -166,6 +246,39 @@ def test_double_click_rechecks_selected_row_and_calibrated_header(adapter, monke
     assert "{ENTER}" not in grid.keys
 
 
+@pytest.mark.parametrize('failure', [None, 'wrong_row', 'disabled', 'replaced'])
+def test_selector_confirms_only_verified_row_with_scoped_ok(adapter, monkeypatch, failure):
+    subject, grid, _ = adapter
+    subject.profile['queries']['products']['clipboard_rows']['keyboard_selection'] = 'ctrl_home_down_confirm'
+    step = subject.profile['actions']['select_product'][0]
+    step['confirm_path'] = 'dialog_ok'
+    calls = []
+    button = SimpleNamespace(is_enabled=lambda: failure != 'disabled', invoke=lambda: calls.append('OK'))
+    def find(path, context):
+        if path == 'dialog_ok':
+            if failure == 'replaced':
+                grid.element_info.runtime_id = [9, 9, 9]
+            return button
+        return grid
+    monkeypatch.setattr(subject, 'find', find)
+    def copy(*args, **kwargs):
+        if kwargs.get('select_all') is False:
+            return 'A\tFirst' if failure == 'wrong_row' else 'B\tSecond'
+        return 'A\tFirst\nB\tSecond'
+    monkeypatch.setattr(clipboard_table, 'copy_table', copy)
+    monkeypatch.setattr(ui, '_click_control', lambda *args, **kwargs: pytest.fail('Selector must confirm with OK'))
+    row = subject.read('products', {})[1]
+    if failure:
+        with pytest.raises(ReviewRequired):
+            subject.act('select_product', {'selected_product': row})
+        assert calls == []
+    else:
+        subject.act('select_product', {'selected_product': row})
+        assert calls == ['OK']
+    assert grid.keys == ['^{HOME}', '{DOWN}']
+    assert subject._table_reads == {}
+
+
 @pytest.mark.parametrize("change", ["reorder", "content", "replace", "forged", "negative"])
 def test_stale_or_forged_row_never_activates(adapter, change):
     subject, grid, copied = adapter
@@ -214,6 +327,36 @@ def test_changed_table_size_cannot_reuse_empty_calibration(adapter, monkeypatch)
     monkeypatch.setattr(clipboard_table, "copy_table", lambda *args, **kwargs: pytest.fail("layout changed"))
     with pytest.raises(ReviewRequired, match="layout changed"):
         subject.read("products", {})
+
+
+@pytest.mark.parametrize('populated', [False, True])
+def test_empty_crop_checks_calibrated_area_when_canvas_grows(adapter, monkeypatch, populated):
+    from PIL import Image
+    subject, grid, _ = adapter
+    calibrated = Image.new('RGB', (12, 8), 'white')
+    wider = Image.new('RGB', (33, 20), 'gray')
+    wider.paste(calibrated, (0, 0))
+    if populated:
+        wider.putpixel((3, 5), (0, 0, 0))
+    grid.capture_as_image = lambda: wider
+    config = subject.profile['queries']['products']['clipboard_rows']
+    config.update(empty_crop=True, empty_snapshot=clipboard_table.snapshot_fingerprint(calibrated))
+    if populated:
+        assert [row['sku'] for row in subject.read('products', {})] == ['A', 'B']
+    else:
+        monkeypatch.setattr(clipboard_table, 'copy_table', lambda *args, **kw: pytest.fail('empty copy'))
+        assert subject.read('products', {}) == []
+
+
+def test_empty_crop_rejects_a_canvas_smaller_than_calibrated_area(adapter):
+    from PIL import Image
+    subject, grid, _ = adapter
+    config = subject.profile['queries']['products']['clipboard_rows']
+    config.update(empty_crop=True,
+                  empty_snapshot=clipboard_table.snapshot_fingerprint(Image.new('RGB', (12, 8))))
+    grid.capture_as_image = lambda: Image.new('RGB', (11, 8))
+    with pytest.raises(ReviewRequired, match='crop no longer fits'):
+        subject.read('products', {})
 
 
 def test_nonempty_grid_pixels_continue_to_normal_copy(adapter):

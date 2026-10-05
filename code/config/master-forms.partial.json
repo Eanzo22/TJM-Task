@@ -6,6 +6,7 @@
   "actions": {
     "new_product": [
       {
+        "operation": "click_bounds",
         "path": [
           {
             "control_type": "Pane",
@@ -13,10 +14,22 @@
           },
           {
             "control_type": "Text",
-            "title": "New product"
+            "title": "Products"
+          }
+        ]
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Tab",
+            "title": "Products"
+          },
+          {
+            "control_type": "Button",
+            "title": "Create a new product"
           }
         ],
-        "operation": "click_bounds",
         "wait_query": "product"
       }
     ],
@@ -656,17 +669,22 @@
     ],
     "new_debtor": [
       {
+        "operation": "select",
         "path": [
           {
-            "control_type": "Pane",
-            "title": "Navigation View"
-          },
+            "control_type": "MenuItem",
+            "title": "New"
+          }
+        ]
+      },
+      {
+        "operation": "select",
+        "path": [
           {
-            "control_type": "Text",
-            "title": "New Contact"
+            "control_type": "MenuItem",
+            "title": "New Debtor"
           }
         ],
-        "operation": "click_bounds",
         "wait_query": "debtor_contact"
       }
     ],

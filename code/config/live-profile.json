@@ -171,6 +171,27 @@
     ],
     "new_debtor": [
       {
+        "operation": "select",
+        "path": [
+          {
+            "control_type": "MenuItem",
+            "title": "New"
+          }
+        ]
+      },
+      {
+        "operation": "select",
+        "path": [
+          {
+            "control_type": "MenuItem",
+            "title": "New Debtor"
+          }
+        ],
+        "wait_query": "debtor_contact"
+      }
+    ],
+    "new_product": [
+      {
         "operation": "click_bounds",
         "path": [
           {
@@ -179,24 +200,23 @@
           },
           {
             "control_type": "Text",
-            "title": "New Contact"
+            "title": "Products"
           }
         ]
-      }
-    ],
-    "new_product": [
+      },
       {
+        "operation": "invoke",
         "path": [
           {
-            "control_type": "Pane",
-            "title": "Navigation View"
+            "control_type": "Tab",
+            "title": "Products"
           },
           {
-            "control_type": "Text",
-            "title": "New product"
+            "control_type": "Button",
+            "title": "Create a new product"
           }
         ],
-        "operation": "click_bounds"
+        "wait_query": "product"
       }
     ],
     "fill_product": [
@@ -1808,18 +1828,8 @@
             "to_right_of": "Search:"
           }
         ],
-        "operation": "set_search",
-        "value": "",
-        "commit_path": [
-          {
-            "control_type": "Window",
-            "title": "Select a product"
-          },
-          {
-            "control_type": "Button",
-            "title": "Cancel"
-          }
-        ],
+        "operation": "type_search",
+        "value": "${line.sku}",
         "read": "native_text"
       }
     ],
@@ -1853,6 +1863,16 @@
           {
             "control_type": "Window",
             "title": "Select a product"
+          }
+        ],
+        "confirm_path": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          },
+          {
+            "control_type": "Button",
+            "title": "OK"
           }
         ]
       }
@@ -1930,6 +1950,16 @@
           {
             "control_type": "Window",
             "title": "Select the address"
+          }
+        ],
+        "confirm_path": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          },
+          {
+            "control_type": "Button",
+            "title": "OK"
           }
         ]
       }
@@ -3215,20 +3245,6 @@
             "title": "${debtor_editor}"
           },
           {
-            "control_type": "ComboBox",
-            "title": "Payment"
-          }
-        ],
-        "operation": "select_option",
-        "value": "${debtor_definition.payment_method}"
-      },
-      {
-        "path": [
-          {
-            "control_type": "Pane",
-            "title": "${debtor_editor}"
-          },
-          {
             "control_type": "Edit",
             "title": "Discount"
           }
@@ -3262,6 +3278,46 @@
         ],
         "operation": "select_option",
         "value": "${debtor_definition.price_mode}"
+      }
+    ],
+    "fill_debtor_payment": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "${debtor_editor}"
+          },
+          {
+            "control_type": "TabItem",
+            "title": "Miscellaneous"
+          }
+        ]
+      },
+      {
+        "operation": "select_option",
+        "path": [
+          {
+            "control_type": "Pane",
+            "title": "${debtor_editor}"
+          },
+          {
+            "control_type": "ComboBox",
+            "title": "Payment"
+          }
+        ],
+        "value": "${debtor_definition.payment_method}"
+      }
+    ],
+    "activate_debtor": [
+      {
+        "operation": "select_tab",
+        "path": [
+          {
+            "control_type": "TabItem",
+            "title": "${debtor_tab}"
+          }
+        ]
       }
     ],
     "fill_order_addresses": [
@@ -3534,6 +3590,50 @@
         "operation": "open_document_row",
         "query": "documents_raw",
         "number": "${invoice_no}"
+      }
+    ],
+    "inspect_product_selection_settings": [
+      {
+        "operation": "select",
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Preferences"
+          },
+          {
+            "control_type": "TreeItem",
+            "title": "Documents"
+          }
+        ]
+      }
+    ],
+    "disable_product_auto_accept": [
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Preferences"
+          },
+          {
+            "control_type": "CheckBox",
+            "title": "immediately take over a clearly found item number"
+          }
+        ],
+        "value": false
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Preferences"
+          },
+          {
+            "control_type": "Button",
+            "title": "Apply"
+          }
+        ]
       }
     ]
   },
@@ -4697,7 +4797,7 @@
           "sha256": "e17dce1b04e8f8598d22bc0b0d7bf24b248267591b6301dac6072c89bb163eb4"
         },
         "format": "raw_tsv",
-        "keyboard_selection": "ctrl_home_down_double_click",
+        "keyboard_selection": "ctrl_home_down_confirm",
         "row_geometry": {
           "header_height": 25,
           "row_height": 25,
@@ -4754,7 +4854,7 @@
           "identity": "customer_id",
           "max_rows": 200
         },
-        "keyboard_selection": "ctrl_home_down_double_click",
+        "keyboard_selection": "ctrl_home_down_confirm",
         "row_geometry": {
           "header_height": 25,
           "row_height": 25,
@@ -5102,6 +5202,34 @@
           "transform": "currency"
         }
       }
+    },
+    "debtor_methods": {
+      "prepare": [
+        {
+          "operation": "select_tab",
+          "path": [
+            {
+              "control_type": "Pane",
+              "title": "${debtor_editor}"
+            },
+            {
+              "control_type": "TabItem",
+              "title": "Miscellaneous"
+            }
+          ]
+        }
+      ],
+      "path": [
+        {
+          "control_type": "Pane",
+          "title": "${debtor_editor}"
+        },
+        {
+          "control_type": "ComboBox",
+          "title": "Payment"
+        }
+      ],
+      "read": "options"
     },
     "debtor": {
       "debtor_form": true
@@ -5892,7 +6020,10 @@
           "header_height": 25,
           "row_height": 25,
           "column_x": 187,
-          "header_sha256": "13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3"
+          "header_sha256": [
+            "13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3",
+            "b19c98b06aae4d19a15cb8be1a158b54bff53e9a84d93502b7744db6180ff101"
+          ]
         }
       },
       "prepare": [
@@ -5955,7 +6086,10 @@
           "header_height": 25,
           "row_height": 25,
           "column_x": 187,
-          "header_sha256": "13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3"
+          "header_sha256": [
+            "13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3",
+            "b19c98b06aae4d19a15cb8be1a158b54bff53e9a84d93502b7744db6180ff101"
+          ]
         }
       },
       "row_transform": "document",
@@ -6019,7 +6153,10 @@
           "header_height": 25,
           "row_height": 25,
           "column_x": 187,
-          "header_sha256": "13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3"
+          "header_sha256": [
+            "13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3",
+            "b19c98b06aae4d19a15cb8be1a158b54bff53e9a84d93502b7744db6180ff101"
+          ]
         }
       },
       "row_transform": "document",
@@ -6057,6 +6194,23 @@
         }
       ],
       "read": "native_text"
+    },
+    "product_selection_settings": {
+      "fields": {
+        "auto_accept_single_product": {
+          "path": [
+            {
+              "control_type": "Window",
+              "title": "Preferences"
+            },
+            {
+              "control_type": "CheckBox",
+              "title": "immediately take over a clearly found item number"
+            }
+          ],
+          "read": "toggle"
+        }
+      }
     }
   }
 }

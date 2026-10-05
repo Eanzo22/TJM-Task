@@ -2,7 +2,7 @@
   "calibrated": false,
   "window_title_re": "^Fakturama - .*",
   "timeout_seconds": 30,
-  "observation": "2026-10-04: six product and nine debtor raw TSV columns. Product Ctrl+A copies off-screen rows. Debtor requires a bounded single-row walk. Both selected rows activated through verified double-click; Enter failed. Empty-grid snapshots observed at recorded sizes.",
+  "observation": "2026-10-04: exact SKU/company selector filters; complete raw TSV observations; verify the positioned row through Copy, then invoke scoped OK. Empty-grid snapshots remain device-specific.",
   "actions": {
     "open_product_selector": [
       {
@@ -32,18 +32,8 @@
             "to_right_of": "Search:"
           }
         ],
-        "operation": "set_search",
-        "value": "",
-        "commit_path": [
-          {
-            "control_type": "Window",
-            "title": "Select a product"
-          },
-          {
-            "control_type": "Button",
-            "title": "Cancel"
-          }
-        ],
+        "operation": "type_search",
+        "value": "${line.sku}",
         "read": "native_text"
       }
     ],
@@ -77,6 +67,16 @@
           {
             "control_type": "Window",
             "title": "Select a product"
+          }
+        ],
+        "confirm_path": [
+          {
+            "control_type": "Window",
+            "title": "Select a product"
+          },
+          {
+            "control_type": "Button",
+            "title": "OK"
           }
         ]
       }
@@ -155,6 +155,16 @@
             "control_type": "Window",
             "title": "Select the address"
           }
+        ],
+        "confirm_path": [
+          {
+            "control_type": "Window",
+            "title": "Select the address"
+          },
+          {
+            "control_type": "Button",
+            "title": "OK"
+          }
         ]
       }
     ]
@@ -200,7 +210,7 @@
           "sha256": "e17dce1b04e8f8598d22bc0b0d7bf24b248267591b6301dac6072c89bb163eb4"
         },
         "format": "raw_tsv",
-        "keyboard_selection": "ctrl_home_down_double_click",
+        "keyboard_selection": "ctrl_home_down_confirm",
         "row_geometry": {
           "header_height": 25,
           "row_height": 25,
@@ -257,7 +267,7 @@
           "identity": "customer_id",
           "max_rows": 200
         },
-        "keyboard_selection": "ctrl_home_down_double_click",
+        "keyboard_selection": "ctrl_home_down_confirm",
         "row_geometry": {
           "header_height": 25,
           "row_height": 25,

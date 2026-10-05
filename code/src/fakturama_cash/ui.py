@@ -382,7 +382,8 @@ class UIAAdapter:
             return None
         if 'address_structure' in spec:
             from .document_fields import read_address
-            return read_address(self._scalar(spec, context), resolve(spec['address_structure'], context))
+            return read_address(self._scalar(spec, context), resolve(spec['address_structure'], context),
+                                contact=context.get('selected_debtor'))
         if 'merge_queries' in spec:
             result = {}
             for query in spec['merge_queries']:
@@ -523,9 +524,11 @@ class UIAAdapter:
             expected = config["empty_snapshot"]
             image = table.capture_as_image()
             if config.get('empty_crop'):
-                if image.width != expected['width'] or image.height < expected['height']:
+                if image.width < expected['width'] or image.height < expected['height']:
                     raise ReviewRequired('Empty grid crop no longer fits', stage='table_read')
-                image = image.crop((0,0,image.width,expected['height']))
+                # The calibrated item area remains anchored on the left when
+                # its editor gains unused space on the right.
+                image = image.crop((0,0,expected['width'],expected['height']))
             snapshot = snapshot_fingerprint(image)
             if any(snapshot[k] != expected[k] for k in ("width", "height")):
                 raise ReviewRequired("Table layout changed since empty-state calibration", stage="table_read")
@@ -577,8 +580,10 @@ class UIAAdapter:
                 or fresh[index] != {k: v for k, v in selected.items() if k != "_ui_row"}):
             raise ReviewRequired("Table changed since row matching", stage="table_select")
         mode = spec["clipboard_rows"].get("keyboard_selection")
-        if mode not in ("ctrl_home_down_enter", "ctrl_home_down_double_click"):
+        if mode not in ("ctrl_home_down_enter", "ctrl_home_down_double_click", "ctrl_home_down_confirm"):
             raise ReviewRequired("Table keyboard row selection is not calibrated", stage="table_select")
+        if mode == "ctrl_home_down_confirm" and not step.get("confirm_path"):
+            raise ReviewRequired("Row selection needs an explicit confirmation control", stage="table_select")
         table = self.find(spec["path"], context)
         if list(table.element_info.runtime_id) != fresh[index]["_table_id"]:
             raise ReviewRequired("Table was replaced before selection", stage="table_select")
@@ -592,7 +597,7 @@ class UIAAdapter:
             if not self._keyboard_safe(table):
                 raise ReviewRequired("Table focus changed before selection", stage="table_select")
             table.type_keys(key, set_foreground=False, pause=0.05)
-        if mode == "ctrl_home_down_double_click":
+        if mode in ("ctrl_home_down_double_click", "ctrl_home_down_confirm"):
             from .clipboard_table import copy_table, parse_table, header_matches
             # Verify the one positioned row through Copy before any activation.
             text = copy_table(table, is_safe=lambda: self._keyboard_safe(table), timeout=self.timeout, select_all=False)
@@ -601,6 +606,14 @@ class UIAAdapter:
                               format=config.get("format", "quoted_tsv"))[0]
             if row != {k: v for k, v in fresh[index].items() if k != "_table_id"}:
                 raise ReviewRequired("Keyboard selected a different table row", stage="table_select")
+            if mode == "ctrl_home_down_confirm":
+                confirm = self.find(step['confirm_path'], context)
+                if not confirm.is_enabled() or not self._keyboard_safe(table):
+                    raise ReviewRequired("Row confirmation is unavailable or focus changed", stage="table_select")
+                if list(self.find(spec['path'], context).element_info.runtime_id) != fresh[index]['_table_id']:
+                    raise ReviewRequired("Table was replaced before confirmation", stage="table_select")
+                confirm.invoke()
+                return
             geometry = config["row_geometry"]
             screenshot = table.capture_as_image()
             header = screenshot.crop((0, 0, screenshot.width, geometry["header_height"]))
@@ -614,7 +627,7 @@ class UIAAdapter:
                 raise ReviewRequired("Row is off-screen or table layout changed", stage="table_select")
             if not self._keyboard_safe(table):
                 raise ReviewRequired("Table focus changed before activation", stage="table_select")
-            if tuple(self.find(spec["path"], context).element_info.runtime_id) != tuple(table.element_info.runtime_id):
+            if list(self.find(spec["path"], context).element_info.runtime_id) != fresh[index]['_table_id']:
                 raise ReviewRequired("Table was replaced before activation", stage="table_select")
             _click_control(table, relative=(geometry["column_x"], bottom - geometry["row_height"] // 2), double=True)
 
@@ -667,6 +680,45 @@ class UIAAdapter:
         if not matches:
             raise ReviewRequired("Text was not retained after leaving the field", stage="text entry",
                                  expected=expected, observed=actual)
+
+    def _type_search(self, step, context, value, *, stage):
+        """Send SWT search events while keeping keyboard focus in the Edit."""
+        if (not isinstance(value, str) or any(ord(c) < 32 for c in value)
+                or step.get('commit_path') or step.get('read', 'native_text') != 'native_text'):
+            raise ReviewRequired('Search needs plain text without a dialog commit button', stage=stage)
+        spec = dict(path=step['path'], read='native_text')
+
+        def field():
+            try:
+                control = self._find_once(step['path'], context)
+            except LookupError as exc:
+                # After opening, disappearance is an uncertain transition;
+                # never reopen or accept a row in response to it.
+                raise ReviewRequired('Search field disappeared during entry', stage=stage) from exc
+            if control.element_info.control_type != 'Edit' or not control.is_enabled():
+                raise ReviewRequired('Search requires an enabled Edit', stage=stage)
+            return control
+
+        control = field()
+        if self._scalar(spec, context) == value:
+            return
+        from .clipboard_table import focus_table
+        focus_table(control, lambda: self._keyboard_safe(control))
+        escaped = ''.join('{' + c + '}' if c in '+^%~(){}' else c for c in value)
+        for keys in ('^a', escaped if escaped else '{BACKSPACE}'):
+            control = field()
+            if not self._keyboard_safe(control):
+                raise ReviewRequired('Search keyboard focus changed', stage=stage)
+            control.type_keys(keys, set_foreground=False, with_spaces=True, pause=0.01)
+
+        def retained():
+            if not self._keyboard_safe(field()):
+                raise ReviewRequired('Search keyboard focus changed during entry', stage=stage)
+            return self._scalar(spec, context)
+
+        observed = wait_stable(retained, timeout=self.timeout)
+        if observed != value:
+            raise ReviewRequired('Search value was not retained', stage=stage, expected=value, observed=observed)
 
     def _type_address(self, step, context, value):
         from .document_fields import address_lines
@@ -917,6 +969,8 @@ class UIAAdapter:
                     control.set_edit_text(str(value))
             elif operation == "type_text":
                 self._type_text(step, context, value)
+            elif operation == 'type_search':
+                self._type_search(step, context, value, stage=name)
             elif operation == 'set_search':
                 if control.element_info.control_type != 'Edit' or any(ord(c)<32 for c in str(value)):
                     raise ReviewRequired('Search needs a plain-text Edit', stage=name)

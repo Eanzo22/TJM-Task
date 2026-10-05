@@ -61,3 +61,26 @@ def test_header_guard_ignores_only_calibrated_unused_scrollbar_tail():
     image.putpixel((20,5),(0,0,0))
     with pytest.raises(ReviewRequired,match='header changed'):
         visible_cell(adapter,'grid',{},layout,0,'name')
+
+
+def test_extra_canvas_width_keeps_exact_calibrated_columns():
+    adapter, table, _, layout = scene()
+    calibrated = table.capture_as_image()
+    wider = Image.new('RGB', (221, 124), 'gray')
+    wider.paste(calibrated, (0, 0))
+    table.capture_as_image = lambda: wider
+    table.rectangle = lambda: Rect(0, 10, 221, 134)
+    assert visible_cell(adapter, 'grid', {}, layout, 0, 'name')[1] == (90, 37)
+    wider.putpixel((20, 5), (0, 0, 0))
+    with pytest.raises(ReviewRequired, match='header changed'):
+        visible_cell(adapter, 'grid', {}, layout, 0, 'name')
+
+
+def test_narrower_canvas_is_rejected_even_with_matching_data_header():
+    adapter, table, _, layout = scene()
+    image = table.capture_as_image()
+    layout['header_width'] = 150
+    layout['header_sha256'] = snapshot_fingerprint(image.crop((0, 0, 150, 25)))['sha256']
+    table.capture_as_image = lambda: image.crop((0, 0, 190, 124))
+    with pytest.raises(ReviewRequired, match='header changed'):
+        visible_cell(adapter, 'grid', {}, layout, 0, 'name')
