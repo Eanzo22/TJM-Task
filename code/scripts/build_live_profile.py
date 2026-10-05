@@ -54,10 +54,26 @@ def build():
                                                         'read': 'native_text', 'transform': 'currency'}}}
     actions['close_environment'] = [dict(operation='invoke', path=pref + [{'control_type': 'Button', 'title': 'Cancel'}],
                                           wait_absent=pref)]
+    # Products dialog can accept a single filtered row before the workflow's
+    # exact-match/OK checks. The observed Preferences tree item is Documents;
+    # Document Settings is a Text heading inside that page, not a TreeItem.
+    auto_accept = pref + [{'control_type': 'CheckBox',
+        'title': 'immediately take over a clearly found item number'}]
+    actions['inspect_product_selection_settings'] = [dict(operation='select',
+        path=pref + [{'control_type': 'TreeItem', 'title': 'Documents'}])]
+    queries['product_selection_settings'] = dict(fields={
+        'auto_accept_single_product': dict(path=auto_accept, read='toggle')})
+    actions['disable_product_auto_accept'] = [
+        dict(operation='toggle', path=auto_accept, value=False),
+        dict(operation='invoke', path=pref + [{'control_type': 'Button', 'title': 'Apply'}])]
 
     actions['activate_order'] = [dict(operation='select_tab', path=[{'control_type': 'TabItem', 'title': '${order_tab}'}])]
-    actions['new_debtor'] = [dict(operation='click_bounds', path=[{'control_type': 'Pane', 'title': 'Navigation View'},
-                                                                 {'control_type': 'Text', 'title': 'New Contact'}])]
+    # Fakturama 2.2.0's Navigation View New Contact omits force-new and can
+    # reactivate an existing contact. The explicit New menu requests a draft.
+    actions['new_debtor'] = [
+        dict(operation='select', path=[{'control_type': 'MenuItem', 'title': 'New'}]),
+        dict(operation='select', path=[{'control_type': 'MenuItem', 'title': 'New Debtor'}],
+             wait_query='debtor_contact')]
     actions['fill_debtor'] = []
     for name in ('fill_debtor_contact', 'fill_debtor_billing_fields', 'set_billing_roles',
                  'add_delivery_address', 'set_delivery_roles', 'fill_debtor_delivery_fields', 'fill_debtor_misc'):
@@ -65,7 +81,16 @@ def build():
         if name == 'fill_debtor_delivery_fields':
             for step in recipe:
                 step['when'] = '${debtor_definition.separate_delivery}'
-        actions['fill_debtor'].extend(recipe)
+        # Payment is selected after contact fields and conditional term setup.
+        actions['fill_debtor'].extend(step for step in recipe
+            if not (name == 'fill_debtor_misc' and step.get('value') == '${debtor_definition.payment_method}'))
+    actions['fill_debtor_payment'] = [tab('debtor', 'Miscellaneous'),
+        dict(operation='select_option', path=field('debtor', 'ComboBox', 'Payment'),
+             value='${debtor_definition.payment_method}')]
+    actions['activate_debtor'] = [dict(operation='select_tab', path=[
+        {'control_type': 'TabItem', 'title': '${debtor_tab}'}])]
+    queries['debtor_methods'] = dict(prepare=[tab('debtor', 'Miscellaneous')],
+        path=field('debtor', 'ComboBox', 'Payment'), read='options')
     queries['debtor'] = {'debtor_form': True}
 
     # Enter source recipient names in the document's editable address snapshot.
@@ -127,7 +152,7 @@ def build():
              commit_path=field('order', 'Edit', 'Cust.Ref.'))]
 
     # Documents copy omits a source-order relationship number; customer is a
-    # rendered company/contact string. Keep it intact for duplicate detection.
+    # rendered company/contact string. Keep the observed fields intact.
     doc_path = [{'control_type': 'Pane', 'title': 'Documents'},
                 {'control_type': 'Pane', 'direct': True},
                 {'control_type': 'Pane', 'direct': True},
@@ -138,7 +163,11 @@ def build():
         'empty_snapshot': {'width': 1340, 'height': 304,
                            'sha256': 'fe6d53d6e1deb547882991eb0936416487676d0d268752b8892b56c9960da737'},
         'row_geometry': {'width': 1340, 'header_height': 25, 'row_height': 25, 'column_x': 187,
-                         'header_sha256': '13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3'}}}
+                         # Reviewed Documents headers with/without the scrollbar
+                         # allocation. Both keep x187 inside the Document column.
+                         'header_sha256': [
+                             '13957440fdaa2bb1065b67d725650e970505de2244bda8de13a82334939addb3',
+                             'b19c98b06aae4d19a15cb8be1a158b54bff53e9a84d93502b7744db6180ff101']}}}
     categories = []
     for category in ('Orders', 'Invoices'):
         query = 'documents_' + category.lower()

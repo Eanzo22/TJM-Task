@@ -1,4 +1,4 @@
-"""Best-effort local sounds; never change a capture's success or failure."""
+"""Best-effort local completion sounds; never change the program's outcome."""
 
 
 def capture_finished(*, success):

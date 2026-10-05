@@ -19,7 +19,7 @@ def test_validate_missing_model_preserves_each_attempt(tmp_path, monkeypatch, ca
         assert result["stage"] == "extraction"
         assert result["status"] == "review_required"
     assert len(list(runs.glob("*/extractions/*/review-required.json"))) == 2
-    assert not list(runs.glob("*/checkpoint.json"))
+    assert not list(runs.rglob("checkpoint.json"))
 
 
 def test_ocr_command_is_explicitly_raw_only(tmp_path, monkeypatch, capsys):

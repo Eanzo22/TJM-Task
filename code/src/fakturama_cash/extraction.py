@@ -3,6 +3,7 @@ import base64
 import json
 import os
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from PIL import Image
@@ -35,6 +36,14 @@ def request_section(image_path, directory, section_model, system, label, *,
                     url, model, transport, report, source_observations=None):
     """Each pass owns its schema and evidence; neither pass can overwrite the other."""
     directory.mkdir(parents=True, exist_ok=True)
+    cpu_only = os.environ.get('FAKTURAMA_VISION_CPU_ONLY', '0')
+    if cpu_only not in ('0', '1'):
+        raise ReviewRequired('FAKTURAMA_VISION_CPU_ONLY must be 0 or 1', stage='extraction')
+    options = {'temperature': 0}
+    if cpu_only == '1':
+        # Request-scoped CPU fallback for failing local GPU backends. Preserve
+        # the same model, schema, source pixels and validation; never auto-retry.
+        options['num_gpu'] = 0
     # Decimal's validation schema permits floats, but our validator rejects them.
     # Request its serialization schema so the model is asked for decimal strings.
     schema = section_model.model_json_schema(mode="serialization")
@@ -51,7 +60,7 @@ def request_section(image_path, directory, section_model, system, label, *,
     prompt += "JSON schema:\n" + json.dumps(schema, separators=(",", ":"))
     body = {
         "model": model, "stream": False, "format": schema,
-        "options": {"temperature": 0},
+        "options": options,
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": prompt,
                       "images": [base64.b64encode(image_path.read_bytes()).decode("ascii")]}],
@@ -59,19 +68,46 @@ def request_section(image_path, directory, section_model, system, label, *,
     # Record instructions, not authorization tokens or a duplicate base64 image.
     (directory / "request.json").write_text(json.dumps(
         {"model": model, "system": system, "prompt": prompt, "schema": schema,
-         "temperature": 0, "timeout_seconds": 1200}, indent=2), encoding="utf-8")
+         "temperature": 0, "options": options, "timeout_seconds": 1200}, indent=2), encoding="utf-8")
     headers = {"Content-Type": "application/json"}
     token = os.environ.get("FAKTURAMA_VISION_TOKEN")
     if token:
         headers["Authorization"] = "Bearer " + token
     request = Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
     report(f"Waiting for {label}; socket timeout is 1200s per request")
-    with transport(request, timeout=1200) as response:
-        raw = response.read(4_000_001)
+    try:
+        with transport(request, timeout=1200) as response:
+            raw = response.read(4_000_001)
+    except HTTPError as exc:
+        # Preserve the bounded server error, not credentials or request headers.
+        # A generic HTTPError otherwise hides Ollama's useful failure reason.
+        try:
+            error_body = exc.read(16_001).decode('utf-8', errors='replace')
+        finally:
+            exc.close()
+        if token:
+            error_body = error_body.replace(token, '[redacted]')
+        truncated = len(error_body) > 16_000
+        error_body = error_body[:16_000]
+        (directory / 'endpoint-error.json').write_text(json.dumps(
+            {'status': exc.code, 'body': error_body, 'truncated': truncated}, indent=2), encoding='utf-8')
+        try:
+            message = json.loads(error_body).get('error', '')
+        except (ValueError, AttributeError):
+            message = error_body
+        message = ' '.join(str(message).split())[:500] or 'No error detail returned'
+        raise ReviewRequired(f'Vision endpoint returned HTTP {exc.code} for {label}: {message}',
+                             stage='extraction',
+                             next_action='Inspect endpoint-error.json and the vision server logs; no Fakturama writes occurred.') from exc
     if len(raw) > 4_000_000:
         raise ValueError("Vision response exceeds 4 MB")
     (directory / "extraction-response.json").write_bytes(raw)
-    content = json.loads(raw)["message"]["content"]
+    result = json.loads(raw)
+    if result.get('error') or result.get('done') is False:
+        raise ReviewRequired(f'Vision endpoint returned an error or incomplete response for {label}',
+                             stage='extraction',
+                             next_action='Inspect extraction-response.json and the vision server logs; no Fakturama writes occurred.')
+    content = result["message"]["content"]
     (directory / "extraction-raw.txt").write_text(content, encoding="utf-8")
     report(f"Validating extracted fields and decimal/date formats: {label}")
     section = section_model.model_validate_json(content)

@@ -5,6 +5,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from .errors import ReviewRequired
 
@@ -40,8 +41,11 @@ class Journal:
     def __init__(self, root, image_hash, order_hash):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
-        self.directory = self.root / image_hash
-        self.directory.mkdir(exist_ok=True)
+        # Each explicitly started workflow has its own journal. An input hash
+        # groups evidence; it does not establish business transaction identity.
+        # Legacy runs/<hash>/checkpoint.json files remain untouched.
+        self.directory = self.root / image_hash / "workflows" / uuid4().hex
+        self.directory.mkdir(parents=True)
         self.path = self.directory / "checkpoint.json"
         self.data = {"image_fingerprint": image_hash, "order_fingerprint": order_hash,
                      "stage": "new", "status": "new", "identifiers": {}, "actions": {}, "evidence": []}
@@ -61,17 +65,6 @@ class Journal:
         if self.lock_fd is not None:
             os.close(self.lock_fd)
             self.lock_path.unlink(missing_ok=True)
-
-    def guard_prior_run(self):
-        for path in self.root.glob("*/checkpoint.json"):
-            previous = json.loads(path.read_text(encoding="utf-8"))
-            same = (previous.get("image_fingerprint") == self.data["image_fingerprint"]
-                    or previous.get("order_fingerprint") == self.data["order_fingerprint"])
-            if same and previous.get("actions"):
-                raise ReviewRequired("A prior run recorded business actions for this input", stage="preflight",
-                                     observed={"checkpoint": str(path), "status": previous.get("status"),
-                                               "identifiers": previous.get("identifiers")},
-                                     next_action="Run reconcile against the recorded checkpoint. Do not delete it to force a rerun.")
 
     def event(self, event, **fields):
         record = {"time": datetime.now(timezone.utc).isoformat(), "event": event, **fields}

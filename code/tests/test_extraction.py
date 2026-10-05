@@ -86,6 +86,59 @@ def test_model_missing_is_clear_stop(source, tmp_path, monkeypatch):
         extract(source, tmp_path / "out")
 
 
+def test_http_failure_preserves_server_reason_without_retry_or_token(source, tmp_path, monkeypatch):
+    from urllib.error import HTTPError
+    monkeypatch.setenv('FAKTURAMA_VISION_TOKEN','PRIVATE-TOKEN')
+    calls=[]
+    def transport(request, timeout):
+        calls.append(request)
+        raise HTTPError(request.full_url,500,'Internal Server Error',{},
+                        io.BytesIO(b'{"error":"runner failed PRIVATE-TOKEN"}'))
+    with pytest.raises(ReviewRequired,match='HTTP 500.*runner failed') as error:
+        extract(source,tmp_path/'out',transport=transport)
+    assert len(calls)==1
+    assert 'PRIVATE-TOKEN' not in str(error.value)
+    evidence=json.loads((tmp_path/'out/table/endpoint-error.json').read_text())
+    assert evidence['status']==500 and '[redacted]' in evidence['body']
+    assert 'PRIVATE-TOKEN' not in evidence['body']
+
+
+@pytest.mark.parametrize('body',[{'error':'runner failed'},
+    {'done':False,'message':{'content':''}}])
+def test_server_error_or_incomplete_success_stops_before_next_pass(source,tmp_path,body):
+    calls=[]
+    def transport(request,timeout):
+        calls.append(request)
+        return io.BytesIO(json.dumps(body).encode())
+    with pytest.raises(ReviewRequired,match='error or incomplete'):
+        extract(source,tmp_path/'out',transport=transport)
+    assert len(calls)==1
+    assert (tmp_path/'out/table/extraction-response.json').exists()
+
+
+def test_cpu_fallback_keeps_model_schema_and_source_validation(payload,source,tmp_path,monkeypatch):
+    monkeypatch.setenv('FAKTURAMA_VISION_CPU_ONLY','1')
+    calls=[]
+    def transport(request,timeout):
+        body=json.loads(request.data)
+        calls.append(body)
+        assert body['options']=={'temperature':0,'num_gpu':0}
+        assert body['model']=='synthetic-transport-test'
+        assert isinstance(body['format'],dict)
+        return response(section(payload,request))
+    actual=extract(source,tmp_path/'out',transport=transport)
+    assert actual.source_total==OrderInput.model_validate(payload).source_total
+    assert len(calls)==3
+
+
+def test_invalid_cpu_setting_stops_before_request(source,tmp_path,monkeypatch):
+    monkeypatch.setenv('FAKTURAMA_VISION_CPU_ONLY','sometimes')
+    def transport(*args,**kwargs):
+        pytest.fail('Invalid configuration reached server')
+    with pytest.raises(ReviewRequired,match='must be 0 or 1'):
+        extract(source,tmp_path/'out',transport=transport)
+
+
 def test_model_output_is_data_not_code(source, tmp_path):
     with pytest.raises(ReviewRequired, match="extraction failed"):
         extract(source, tmp_path / "out", transport=lambda *_args, **_kw:

@@ -54,7 +54,7 @@ def test_close_requires_clean_selected_tab_and_verifies_disappearance(scene, mon
         assert keys==['^w'] and absent==['editor']
 
 
-def test_product_search_uses_value_pattern_without_dialog_keyboard_shortcuts(scene, monkeypatch):
+def test_set_search_uses_value_pattern_without_dialog_keyboard_shortcuts(scene, monkeypatch):
     adapter, step, field, keys, _ = scene
     values = ['']
     field.set_edit_text = lambda value: values.__setitem__(0, value)
@@ -72,6 +72,156 @@ def test_failed_search_value_assignment_stops_before_matching_records(scene, mon
     with pytest.raises(ReviewRequired,match='not retained'):
         adapter.act('search',{})
     assert keys==[]
+
+
+@pytest.mark.parametrize('profile_source', ['component', 'live', 'generated'])
+def test_product_search_recipe_does_not_accept_or_reopen_dialog(scene, monkeypatch, profile_source):
+    import json
+    import runpy
+    from pathlib import Path
+
+    adapter, _, field, keys, focused = scene
+    code = Path(__file__).resolve().parents[1]
+    if profile_source == 'generated':
+        monkeypatch.chdir(code)
+        profile = runpy.run_path(str(code / 'scripts/build_live_profile.py'))['build']()
+    else:
+        filename = 'selectors.partial.json' if profile_source == 'component' else 'live-profile.json'
+        profile = json.loads((code / 'config' / filename).read_text(encoding='utf-8'))
+    adapter.profile = profile
+    path = profile['actions']['search_product'][0]['path']
+    values = ['OLD SEARCH']
+
+    def find(actual_path, context):
+        # Opening/accepting the dialog or focusing its Cancel button is forbidden
+        # during search. Only the same scoped Search Edit may be accessed.
+        assert actual_path == path
+        return field
+
+    def type_keys(value, **kwargs):
+        assert kwargs['set_foreground'] is False
+        keys.append(value)
+        if value != '^a':
+            values[0] = value
+
+    monkeypatch.setattr(adapter, 'find', find)
+    monkeypatch.setattr(adapter, '_find_once', find)
+    monkeypatch.setattr(adapter, '_scalar', lambda *args: values[0])
+    field.type_keys = type_keys
+    for _ in range(2):
+        adapter.act('search_product', {'line': {'sku': 'CHR-ERG-01'}})
+    assert values[0] == 'CHR-ERG-01' and keys == ['^a', 'CHR-ERG-01']
+    assert focused[0] == 'field'
+
+
+@pytest.fixture
+def search_scene(scene, monkeypatch):
+    adapter, _, field, keys, focused = scene
+    value = ['']
+    adapter.profile['actions'] = {'search_product': [dict(operation='type_search',
+        path='field', value='SKU-003', read='native_text')]}
+    monkeypatch.setattr(adapter, '_find_once', lambda path, ctx: field)
+    monkeypatch.setattr(adapter, '_scalar', lambda *args: value[0])
+
+    def type_keys(text, **kwargs):
+        keys.append(text)
+        if text == 'SKU-003':
+            value[0] = text
+
+    field.type_keys = type_keys
+    return adapter, field, keys, focused, value
+
+
+def test_reopened_search_uses_keyboard_when_value_pattern_does_not_persist(search_scene):
+    adapter, field, keys, focused, value = search_scene
+    field.set_edit_text = lambda text: None  # Reproduces the ignored SetValue.
+    adapter.act('search_product', {})
+    assert value[0] == 'SKU-003' and keys == ['^a', 'SKU-003']
+    assert focused[0] == 'field'
+
+
+def test_search_focus_loss_after_select_all_stops_before_sku(search_scene):
+    adapter, field, keys, focused, _ = search_scene
+
+    def lose_focus(text, **kwargs):
+        keys.append(text)
+        focused[0] = None
+
+    field.type_keys = lose_focus
+    with pytest.raises(ReviewRequired, match='focus changed'):
+        adapter.act('search_product', {})
+    assert keys == ['^a']
+
+
+def test_search_dialog_disappearance_stops_without_reopening(search_scene, monkeypatch):
+    adapter, field, keys, _, _ = search_scene
+
+    def field_present(path, context):
+        if keys:
+            raise LookupError('dialog closed')
+        return field
+
+    monkeypatch.setattr(adapter, '_find_once', field_present)
+    with pytest.raises(ReviewRequired, match='disappeared'):
+        adapter.act('search_product', {})
+    assert keys == ['^a']
+
+
+def test_search_reacquires_replaced_provider_before_typing_sku(search_scene, monkeypatch):
+    adapter, original, keys, _, value = search_scene
+    replacement = SimpleNamespace(element_info=SimpleNamespace(control_type='Edit'), is_enabled=lambda: True)
+
+    def replacement_keys(text, **kwargs):
+        assert text == 'SKU-003' and kwargs['set_foreground'] is False
+        keys.append(text)
+        value[0] = text
+
+    replacement.type_keys = replacement_keys
+    monkeypatch.setattr(adapter, '_find_once', lambda *args: replacement if keys else original)
+    monkeypatch.setattr(adapter, '_keyboard_safe', lambda control: True)
+    adapter.act('search_product', {})
+    assert keys == ['^a', 'SKU-003'] and value[0] == 'SKU-003'
+
+
+def test_ignored_search_keys_stop_without_repeated_entry(search_scene):
+    adapter, field, keys, _, _ = search_scene
+    field.type_keys = lambda text, **kwargs: keys.append(text)
+    with pytest.raises(ReviewRequired, match='not retained') as error:
+        adapter.act('search_product', {})
+    assert error.value.details['observed'] == ''
+    assert keys == ['^a', 'SKU-003']
+
+
+@pytest.mark.parametrize('bad', ['newline', 'commit_button', 'value_read', 'not_text'])
+def test_invalid_search_recipe_sends_no_keys(search_scene, bad):
+    adapter, _, keys, focused, _ = search_scene
+    step = adapter.profile['actions']['search_product'][0]
+    if bad == 'newline':
+        step['value'] = 'SKU\n003'
+    elif bad == 'commit_button':
+        step['commit_path'] = 'commit'
+    elif bad == 'value_read':
+        step['read'] = 'value'
+    else:
+        step['value'] = None
+    with pytest.raises(ReviewRequired, match='Search needs plain text'):
+        adapter.act('search_product', {})
+    assert keys == [] and focused[0] is None
+
+
+def test_search_shortcut_characters_are_literal(search_scene):
+    adapter, field, keys, _, value = search_scene
+    step = adapter.profile['actions']['search_product'][0]
+    step['value'] = 'SKU+^%~(){}'
+
+    def type_keys(text, **kwargs):
+        keys.append(text)
+        if text != '^a':
+            value[0] = 'SKU+^%~(){}'
+
+    field.type_keys = type_keys
+    adapter.act('search_product', {})
+    assert keys == ['^a', 'SKU{+}{^}{%}{~}{(}{)}{{}{}}']
 
 
 def test_shortcut_metacharacters_are_literal(scene):

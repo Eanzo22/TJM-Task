@@ -35,10 +35,17 @@ def visible_cell(adapter, path, context, layout, index, column):
                 and box.top + layout['header_height'] <= bottom
                 and top <= box.top + y < bottom):
             image = table.capture_as_image()
-            header_width = layout.get('header_width', image.width)
+            header_width = layout.get('header_width', layout['width'])
             header = snapshot_fingerprint(image.crop((0, 0, header_width, layout['header_height'])))
-            if image.width != layout['width'] or header['sha256'] != layout['header_sha256']:
-                raise ReviewRequired('Item grid header changed', stage='item_edit')
+            # The outer editor's scrollbar can disappear after selecting a
+            # Debtor, making the canvas wider while all data columns stay put.
+            # Extra right-hand space is safe only when the calibrated header
+            # remains pixel-identical; never accept a narrower canvas.
+            if image.width < layout['width'] or header['sha256'] != layout['header_sha256']:
+                raise ReviewRequired('Item grid header changed', stage='item_edit',
+                                     expected={'minimum_width': layout['width'],
+                                               'header_sha256': layout['header_sha256']},
+                                     observed={'width': image.width, 'header_sha256': header['sha256']})
             return table, (x, y)
         # A row beyond the native canvas needs a separately calibrated internal
         # grid scroll mapping; outer scrolling cannot reveal it.
