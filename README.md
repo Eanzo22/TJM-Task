@@ -1,35 +1,73 @@
 # Fakturama Image to Cash
 
-Windows automation that reads one order image, creates an Order through Fakturama's UI, generates its linked Invoice, applies the source payment status, and verifies the saved records.
+Turn one order image into a saved Order and linked Invoice in Fakturama, including source payment status and final verification. The implementation uses Python, Windows OCR, an Ollama-compatible vision model, and Microsoft UI Automation.
 
-The implementation uses Python, Windows OCR, an Ollama-compatible vision model, and Microsoft UI Automation. It targets the observed English Fakturama 2.2.0 UI and the assignment's EUR image layout. Work is on the **Development** branch.
+Supported setup: **Windows, English Fakturama 2.2.0, EUR, and the supplied image layout**. Development takes place on the **Development** branch.
 
 ## Current status
 
-The latest image-driven transaction saved **PO000011 → INV000005**, with Net EUR 570.00, VAT EUR 108.30, Total EUR 678.30, and paid Bank Transfer dated 18 July 2026. The command stopped at the final Invoice reopen because its table header differed from calibration. After correcting that mapping, a separate read-only check reopened and verified the saved Invoice. The original stopped checkpoint remains preserved; this result is not presented as a fresh uninterrupted run after the correction.
+The latest image transaction saved **PO000011 → INV000005**, total **EUR 678.30**, paid by Bank Transfer on 18 July 2026. Final Invoice reopening initially stopped on a table-layout check. After correcting that mapping, the existing saved Invoice passed a separate read-only verification. A fresh uninterrupted run after that correction remains to be checked.
 
-The current automated suite has **414 passing tests**. Tests do not perform live Fakturama writes. See [verification](documents/implementation/verification.md) for the evidence and practical limits.
+The latest automated suite passed **414 tests**. See [verification](documents/implementation/verification.md) for observed results and [remaining work](documents/implementation/remaining-issues-and-test-plan.md) for limits.
 
-## Setup and use
+## Set up and run
 
-Use **Windows CMD** and follow [the setup and run guide](code/README.md). It covers Python, English Windows OCR, Ollama, device calibration, image validation, running the workflow, and recovery.
+Follow [the CMD setup guide](code/README.md). It includes the **CPU-only workaround** for the local GPU vision error and [step-by-step new-device calibration](documents/implementation/calibration.md).
 
-If the local GPU backend returns the HTTP 500/token-repeat error observed during development, the guide includes the explicit CPU-only fallback:
+The example input is included at [documents/Live_Task.png](documents/Live_Task.png). You can supply another readable raster image with the supported layout. Each `run` creates a **new Order**; inspect saved identifiers after a failure before rerunning.
 
-```bat
-set "FAKTURAMA_VISION_CPU_ONLY=1"
+## Current workflow
+
+```mermaid
+flowchart TD
+    A["Order image: three extraction passes"] --> B{"Fields and totals valid?"}
+    B -->|No| R["Stop for review and retain evidence"]
+    B -->|Yes| C["Check desktop, EUR and Product selection preference"]
+    C --> D["Open New Order and fill source header"]
+    D --> E{"One exact Debtor?"}
+    E -->|Yes| F["Select with OK and verify address roles"]
+    E -->|Missing| G["Create Debtor, resolve payment while open, Save once and reselect"]
+    E -->|Conflict| R
+    G --> F
+    F --> H{"One exact Product SKU?"}
+    H -->|Yes| J["Select with OK, fill source line and verify"]
+    H -->|Missing| I["Resolve VAT first, create Product, Save once and reselect"]
+    H -->|Conflict| R
+    I --> J
+    J -->|More items| H
+    J -->|All items| K["Verify Order, Save once and check Documents"]
+    K --> L["Create Invoice from saved Order follow up"]
+    L --> M["Verify copied fields and apply PAID or UNPAID status"]
+    M --> N["Save Invoice once and check both Documents rows"]
+    N --> O["Reopen Invoice, verify persisted fields and finish"]
 ```
 
-Set it in the same CMD session as the automation, then validate the image again before running the UI workflow. CPU inference is slower; it uses the same model and validation rules.
+Any failed check or uncertain action stops for review. The Order stays open while missing masters are resolved. Proposed Order/Customer/Invoice identifiers and proposed Invoice dates are preserved. Invoice and Delivery postal fields are checked separately. The flow ends after Invoice verification.
 
-## Repository
+## Code structure and boundaries
 
-| Location | Purpose |
-| --- | --- |
-| [code/](code/README.md) | Source, tests, component mappings, profile builder, and CLI |
-| [documents/implementation/](documents/implementation/) | Current requirements, UI contract, verification, and remaining work |
-| [documents/HANDOFF.md](documents/HANDOFF.md) | Short continuation guide and latest saved transaction |
+```text
+code/
+  pyproject.toml                 Dependencies and CLI entry point
+  src/fakturama_cash/
+    cli.py                      Commands and result reporting
+    extraction.py               OCR-assisted vision extraction
+    models.py, normalize.py     Schema, dates and Decimal arithmetic
+    matching.py, verification.py Exact identity and observed-value checks
+    workflow.py                 Order-first business sequence
+    ui.py                       UIA actions and observations
+    clipboard_table.py          Custom table reads and row checks
+    item_table.py               Calibrated item-cell editing
+    calibration*.py             Guided device measurements
+    state.py                    Run lock, checkpoints and events
+  config/                       UI control and table mappings
+  scripts/                      Profile builder and developer smoke runner
+  tests/                        Synthetic data and simulated UI checks
+documents/implementation/       Setup details, coverage and verification
+```
 
-Source images, model responses, screenshots, run evidence, local profiles, and Word design artifacts are local deliverables and are not bundled in a clean clone. Supply a readable raster order image; the CLI does not accept the assignment DOCX directly.
+`cli.py` starts extraction and validation, then passes the validated input to `workflow.py`. The workflow owns matching and business decisions; `ui.py` executes mapped actions and returns observed values. `state.py` records intent before writes. Configuration contains control paths and measured table geometry, while calibration produces a device-local profile.
 
-Each explicit `run` starts a **new Order**. It does not resume a checkpoint or deduplicate earlier transactions. Review recorded identifiers after a failure before starting another run.
+The program changes Fakturama through its UI only. Tests use simulated controls. Checkpoints support review, not automatic resume; uncertain Save/payment actions are not replayed. Other image layouts, currencies, UI languages, nonzero document discount/shipping, and uncalibrated grid scrolling need more work.
+
+Run evidence, local calibration profiles, and Word design files stay outside Git. The sample order image is included.

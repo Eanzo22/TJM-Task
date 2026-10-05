@@ -1,6 +1,6 @@
 # Fakturama implementation handoff
 
-Updated 5 October 2026. Work on **Development**, not master. The latest implementation and setup are in [code README](../code/README.md); the assignment is the specification. The local Word design was rewritten to the current flow and contains a simple flowchart and three-hour priorities.
+Updated 5 October 2026. Work on **Development**, not master. The latest implementation and setup are in [code README](../code/README.md); the assignment is the specification. The README now contains the current flowchart and code boundaries. The sample `documents/Live_Task.png` is tracked. Operator calibration steps are in [the walkthrough](implementation/calibration.md).
 
 ## Current state
 

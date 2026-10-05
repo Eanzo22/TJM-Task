@@ -7,7 +7,7 @@ Updated 5 October 2026, Development. The current image flow saved PO000011 and I
 1. Use a new authorized test transaction for one clean image command with the current mappings. Do not recreate the already verified transaction just to obtain a clean log.
 2. Exercise the revised missing-Debtor/missing-payment branch with the Debtor kept open. Confirm dropdown refresh, one Debtor Save, and exact reselection. A stale dropdown must stop before Save.
 3. Exercise current missing-VAT creation, UNPAID persistence, and interruption after an uncertain write. Reconcile the saved state read-only before deciding on another transaction.
-4. Run guided calibration on another device, confirm copied counts and reviewed geometry, and verify a transaction there. Existing successful calibration flags do not establish portability.
+4. Run guided calibration on another device, confirm copied counts and reviewed geometry, and verify a transaction there. Follow the [new-machine walkthrough](calibration.md); existing flags do not establish portability.
 
 These require controlled live data and should follow implementation work as needed; repeating the whole regression suite without a new change adds no evidence about the desktop.
 
@@ -30,4 +30,4 @@ These require controlled live data and should follow implementation work as need
 - **Second hour:** improve read-only reconciliation to distinguish saved, unsaved, and uncertain stages and give concrete operator next steps without replaying uncertain writes.
 - **Final hour:** improve vision failure/cancellation feedback, focused regressions for observed failures, and a short successful setup/run demonstration.
 
-CPU-only inference already exists for the observed local GPU failure; use the [CMD setup instructions](../../code/README.md#3-cpu-only-fallback-for-the-observed-gpu-failure) rather than changing validation or guessing extracted values.
+CPU-only inference already exists for the observed local GPU failure; use the [CMD setup instructions](../../code/README.md#cpu-only-fallback) rather than changing validation or guessing extracted values.

@@ -29,7 +29,7 @@ runs/dccd74e337dfe5a5677366c004c98742d18cdb2444c5fdc90aba38ecc239ba67/
     post-failure-verified-uia.json
 ```
 
-The local one-off verification script is `evidence/private/verify-existing-invoice.py`; it is not a public resume command. Evidence and source images are ignored/private and absent in a clean clone. Review customer details before sharing captures.
+The local one-off verification script is `evidence/private/verify-existing-invoice.py`; it is not a public resume command. Run evidence is private and absent in a clean clone. The source example is now included as `documents/Live_Task.png`. Review customer details before sharing captures.
 
 ## Earlier development evidence
 
@@ -44,6 +44,6 @@ On 5 October 2026, **414 tests passed**. These use synthetic data, mocked transp
 
 The pytest run reported a cache permission warning from the inherited local `.pytest_cache`; the tests passed. The documented CMD test command uses its own local cache/temp paths. Profile completeness checks are offline and do not certify geometry, copy scope, or transaction correctness.
 
-The current live profile passed the offline completeness check, `pip check` reported no broken requirements, and all local links in the seven retained Markdown guides resolved. Git whitespace checks passed. No live business run was started for this documentation and commit pass.
+The last implementation checks passed profile completeness, `pip check`, local Markdown links, and Git whitespace checks. Documentation edits do not add a new live transaction result.
 
 For current verification priorities, see [remaining work](remaining-issues-and-test-plan.md). Setup, commands, and recovery are in [code README](../../code/README.md).

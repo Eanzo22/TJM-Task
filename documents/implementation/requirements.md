@@ -21,7 +21,7 @@ Updated 5 October 2026 on Development. The assignment remains the specification.
 | Stop after Invoice verification | No Delivery, Correction, or Dunning creation actions |
 | UIA grounding | Scoped controls, reviewed relative table geometry, copy completeness and layout guards; other devices require calibration |
 | Uncertain action handling | Write-ahead per-attempt journal, run lock, no automatic replay; read-only reconcile, no automatic resume |
-| Setup and reporting | CMD setup, local calibration, CPU-only option, progress and success/failure sounds documented in code README |
+| Setup and reporting | CMD setup, explicit new-machine calibration steps, CPU-only option, progress and success/failure sounds documented |
 
 Latest automated check: **414 tests passed** on 5 October 2026. Tests cover simulated matching, creation, payment, mutation failures, search focus, clipboard contention, layout guards, extraction diagnostics, and calibration. They do not establish live success for every conditional branch.
 
