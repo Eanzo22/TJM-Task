@@ -379,14 +379,60 @@ def test_calibrated_empty_pixels_skip_the_crashing_copy_command(adapter, monkeyp
     assert grid.keys == ["^{HOME}"]
 
 
-def test_changed_table_size_cannot_reuse_empty_calibration(adapter, monkeypatch):
+@pytest.mark.parametrize('size', [(13, 8), (11, 8), (13, 14), (12, 7)])
+def test_changed_table_size_cannot_reuse_empty_calibration(adapter, monkeypatch, size):
     from PIL import Image
     subject, grid, _ = adapter
     subject.profile["queries"]["products"]["clipboard_rows"]["empty_snapshot"] = clipboard_table.snapshot_fingerprint(Image.new("RGB", (12, 8)))
-    grid.capture_as_image = lambda: Image.new("RGB", (13, 8))
+    grid.capture_as_image = lambda: Image.new("RGB", size)
     monkeypatch.setattr(clipboard_table, "copy_table", lambda *args, **kwargs: pytest.fail("layout changed"))
-    with pytest.raises(ReviewRequired, match="layout changed"):
+    with pytest.raises(ReviewRequired, match="layout changed") as error:
         subject.read("products", {})
+    assert error.value.details['expected'] == {'width': 12, 'height': 8}
+    assert error.value.details['observed'] == dict(zip(('width', 'height'), size))
+
+
+def test_taller_empty_grid_uses_original_top_area_without_copy(adapter, monkeypatch):
+    from PIL import Image
+    subject, grid, _ = adapter
+    calibrated = Image.new('RGB', (12, 8), 'white')
+    calibrated.putpixel((2, 1), (0, 0, 0))  # The header is part of the comparison.
+    taller = Image.new('RGB', (12, 14), 'white')
+    taller.paste(calibrated, (0, 0))
+    grid.capture_as_image = lambda: taller
+    subject.profile['queries']['products']['clipboard_rows']['empty_snapshot'] = clipboard_table.snapshot_fingerprint(calibrated)
+    monkeypatch.setattr(clipboard_table, 'copy_table', lambda *a, **kw: pytest.fail('empty grid copy'))
+    assert subject.read('products', {}) == []
+    assert grid.keys == ['^{HOME}']
+
+
+def test_taller_populated_grid_still_copies_all_rows(adapter, monkeypatch):
+    from PIL import Image
+    subject, grid, _ = adapter
+    calibrated = Image.new('RGB', (12, 8), 'white')
+    taller = Image.new('RGB', (12, 14), 'white')
+    taller.putpixel((2, 5), (0, 0, 0))  # First record prevents a false empty result.
+    grid.capture_as_image = lambda: taller
+    subject.profile['queries']['products']['clipboard_rows']['empty_snapshot'] = clipboard_table.snapshot_fingerprint(calibrated)
+    def copy(*args, **kwargs):
+        assert kwargs.get('select_all', True) is True
+        return '\n'.join(f'{i}\tRecord {i}' for i in range(20))
+    monkeypatch.setattr(clipboard_table, 'copy_table', copy)
+    assert [row['sku'] for row in subject.read('products', {})] == [str(i) for i in range(20)]
+
+
+@pytest.mark.parametrize('changed_pixel', [(2, 1), (2, 5)])
+def test_taller_grid_changed_header_or_row_is_not_assumed_empty(adapter, changed_pixel):
+    from PIL import Image
+    subject, grid, copied = adapter
+    calibrated = Image.new('RGB', (12, 8), 'white')
+    taller = Image.new('RGB', (12, 14), 'white')
+    taller.putpixel(changed_pixel, (0, 0, 0))
+    grid.capture_as_image = lambda: taller
+    subject.profile['queries']['products']['clipboard_rows']['empty_snapshot'] = clipboard_table.snapshot_fingerprint(calibrated)
+    copied[0] = ''  # Failed/blank Copy is never an alternative proof of emptiness.
+    with pytest.raises(ReviewRequired, match='empty from failed table copy'):
+        subject.read('products', {})
 
 
 @pytest.mark.parametrize('populated', [False, True])

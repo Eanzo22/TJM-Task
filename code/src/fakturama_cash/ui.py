@@ -649,9 +649,17 @@ class UIAAdapter:
                 # The calibrated item area remains anchored on the left when
                 # its editor gains unused space on the right.
                 image = image.crop((0,0,expected['width'],expected['height']))
+            elif image.width == expected['width'] and image.height > expected['height']:
+                # A divider move can add space below the calibrated grid. After
+                # Ctrl+Home, compare the same top area (including the header and
+                # first rows) for emptiness only. Copy still reads ALL rows below.
+                # Do not tolerate width changes or a shorter comparison area.
+                image = image.crop((0, 0, expected['width'], expected['height']))
             snapshot = snapshot_fingerprint(image)
             if any(snapshot[k] != expected[k] for k in ("width", "height")):
-                raise ReviewRequired("Table layout changed since empty-state calibration", stage="table_read")
+                raise ReviewRequired("Table layout changed since empty-state calibration", stage="table_read",
+                                     expected={k: expected[k] for k in ('width', 'height')},
+                                     observed={k: snapshot[k] for k in ('width', 'height')})
             empty = empty or snapshot == expected
             if tuple(self.find(spec["path"], context).element_info.runtime_id) != identity:
                 raise ReviewRequired("Table was replaced during empty-state check", stage="table_read")

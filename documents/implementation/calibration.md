@@ -112,6 +112,13 @@ at operation entry, not an older layout you changed manually. If expansion canno
 expose the controls, or restoration fails, execution stops for review. The helper
 is not a general solution for every nested scrolling/layout arrangement.
 
+An otherwise unchanged table may be taller than its empty-state calibration.
+After returning to the first row, the reader compares the original top area for
+emptiness; the all-rows Copy operation is not cropped. Width changes and tables
+shorter than the calibrated image still stop for review. Existing header and
+row-selection checks remain in force, so this does not permit arbitrary resizing
+or changes to column order.
+
 ## If calibration stops
 
 - **No populated row:** prepare the missing record manually, then start calibration again.
