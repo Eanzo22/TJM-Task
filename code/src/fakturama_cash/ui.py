@@ -954,7 +954,7 @@ class UIAAdapter:
         recipe = self.profile.get("actions", {}).get(name)
         if not recipe:
             raise ReviewRequired("Action not calibrated", stage=name)
-        for step in recipe:
+        for step_number, step in enumerate(recipe, start=1):
             if "when" in step or "unless" in step:
                 if "when" in step and "unless" in step:
                     raise ReviewRequired("Action condition is ambiguous", stage=name)
@@ -1013,7 +1013,28 @@ class UIAAdapter:
                     raise ReviewRequired("Popup focus changed before Escape", stage=name)
                 control.type_keys("{ESC}", set_foreground=False, pause=0.05)
             elif operation == "select":
-                control.select() if value is None else control.select(str(value))
+                try:
+                    if value is None and control.element_info.control_type == 'MenuItem':
+                        from pywinauto.uia_defines import (
+                            NoPatternInterfaceError, expand_state_expanded, expand_state_leaf_node)
+                        # Menus are expanded/invoked, not selected like list rows.
+                        # A missing expansion pattern identifies a leaf command.
+                        # COM failures are not a fallback signal: never replay an action.
+                        try:
+                            state = control.get_expand_state()
+                        except NoPatternInterfaceError:
+                            state = expand_state_leaf_node
+                        if state == expand_state_leaf_node:
+                            control.invoke()
+                        elif state != expand_state_expanded:
+                            control.expand()
+                    else:
+                        control.select() if value is None else control.select(str(value))
+                except Exception as exc:
+                    raise ReviewRequired(
+                        f"Selection step {step_number} failed: {type(exc).__name__}: {exc}",
+                        stage=name, expected=step['path'],
+                        next_action="Inspect the named control and failure evidence. No automatic retry was attempted.") from exc
             elif operation == "set":
                 if step.get("format") == "date_english":
                     self._set_date(step, context, value)

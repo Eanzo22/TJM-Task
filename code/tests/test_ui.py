@@ -44,6 +44,69 @@ def test_complete_profile_check_does_not_connect():
     UIAAdapter(profile, desktop=object()).preflight({"example"}, {"value"}, connect=False)
 
 
+@pytest.mark.parametrize('state, expected', [(0, ['expand']), (1, []), (3, ['invoke']),
+                                            ('missing', ['invoke'])])
+def test_menu_selection_uses_menu_patterns(monkeypatch, state, expected):
+    from types import SimpleNamespace
+    from pywinauto.uia_defines import NoPatternInterfaceError
+    calls = []
+
+    def expand_state():
+        if state == 'missing':
+            raise NoPatternInterfaceError()
+        return state
+
+    control = SimpleNamespace(
+        element_info=SimpleNamespace(control_type='MenuItem'), is_enabled=lambda: True,
+        get_expand_state=expand_state, expand=lambda: calls.append('expand'),
+        invoke=lambda: calls.append('invoke'),
+        select=lambda: pytest.fail('Menus must not use the SelectionItem pattern'))
+    adapter = UIAAdapter({'actions': {'inspect_environment': [
+        {'operation': 'select', 'path': [{'control_type': 'MenuItem', 'title': 'File'}]}]}}, desktop=object())
+    monkeypatch.setattr(adapter, 'find', lambda *args: control)
+    adapter.act('inspect_environment', {})
+    assert calls == expected
+
+
+@pytest.mark.parametrize('state', [0, 3])
+def test_menu_com_failure_names_step_and_never_replays(monkeypatch, state):
+    from types import SimpleNamespace
+    from comtypes import COMError
+    calls = []
+
+    def fail(operation):
+        calls.append(operation)
+        raise COMError(-2146233079, None, (None, None, None, 0, None))
+
+    menu = SimpleNamespace(
+        element_info=SimpleNamespace(control_type='MenuItem'), is_enabled=lambda: True,
+        get_expand_state=lambda: state, expand=lambda: fail('expand'), invoke=lambda: fail('invoke'))
+    path = [{'control_type': 'MenuItem', 'title': 'Preferences'}]
+    adapter = UIAAdapter({'actions': {'inspect_environment': [
+        {'operation': 'select', 'path': [], 'when': False},
+        {'operation': 'select', 'path': path}]}}, desktop=object())
+    monkeypatch.setattr(adapter, 'find', lambda *args: menu)
+    with pytest.raises(ReviewRequired, match='Selection step 2 failed: COMError') as error:
+        adapter.act('inspect_environment', {})
+    assert error.value.details['stage'] == 'inspect_environment'
+    assert error.value.details['expected'] == path
+    assert isinstance(error.value.__cause__, COMError)
+    assert calls == (['expand'] if state == 0 else ['invoke'])
+
+
+@pytest.mark.parametrize('control_type, value, expected', [('TreeItem', None, ()), ('ComboBox', 'EUR', ('EUR',))])
+def test_non_menu_selection_is_unchanged(monkeypatch, control_type, value, expected):
+    from types import SimpleNamespace
+    calls = []
+    control = SimpleNamespace(element_info=SimpleNamespace(control_type=control_type),
+                              is_enabled=lambda: True, select=lambda *args: calls.append(args))
+    adapter = UIAAdapter({'actions': {'select_test': [
+        {'operation': 'select', 'path': [], 'value': value}]}}, desktop=object())
+    monkeypatch.setattr(adapter, 'find', lambda *args: control)
+    adapter.act('select_test', {})
+    assert calls == [expected]
+
+
 def test_discovery_retries_only_missing_observation(monkeypatch):
     from fakturama_cash import ui
     clock = Clock()
