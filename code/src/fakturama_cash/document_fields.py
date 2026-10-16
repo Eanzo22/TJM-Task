@@ -73,6 +73,9 @@ def document_values(row):
     types = {'ICON_ORDER': 'Order', 'ICON_INVOICE': 'Invoice'}
     states = {'COMMAND_ORDER_PENDING': 'open', 'COMMAND_CHECKED': 'paid',
               'COMMAND_UNCHECKED': 'unpaid'}
+    if row['type_raw'] == 'ICON_INVOICE':
+        # Observed invoice warning icon is labelled "unpaid"; not a generic fallback.
+        states['COMMAND_ERROR'] = 'unpaid'
     match = re.fullmatch(r'\w{3} (\w{3}) (\d{2}) \d{2}:\d{2}:\d{2} [A-Z]+ (\d{4})', row['date_raw'])
     if row['type_raw'] not in types or row['state_raw'] not in states or not match:
         raise ReviewRequired('Unrecognized document-list format', stage='documents_read', observed=row)

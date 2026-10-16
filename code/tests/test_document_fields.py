@@ -139,6 +139,29 @@ def test_document_date_and_customer_are_observed_without_guessing_company():
     assert 'company' not in result
 
 
+@pytest.mark.parametrize('document_type,status,expected', [
+    ('ICON_INVOICE', 'COMMAND_ERROR', 'unpaid'),
+    ('ICON_INVOICE', 'COMMAND_UNCHECKED', 'unpaid'),
+    ('ICON_INVOICE', 'COMMAND_CHECKED', 'paid'),
+    ('ICON_ORDER', 'COMMAND_ORDER_PENDING', 'open'),
+    ('ICON_ORDER', 'COMMAND_ERROR', None),
+    ('ICON_INVOICE', 'UNKNOWN_STATUS', None),
+    ('UNKNOWN_TYPE', 'COMMAND_ERROR', None),
+])
+def test_invoice_warning_mapping_is_explicit_and_scoped(document_type, status, expected):
+    row = dict(type_raw=document_type, no='TEST',
+               date_raw='Tue Sep 29 00:00:00 EEST 2026',
+               state_raw=status, total='570.0')
+    if expected is None:
+        with pytest.raises(ReviewRequired, match='Unrecognized document-list format'):
+            document_values(row)
+    else:
+        result = document_values(row)
+        assert result['state'] == expected
+        assert result['state_raw'] == status  # Keep original evidence unchanged.
+        assert row['state_raw'] == status
+
+
 def test_item_copy_discount_fraction_matches_positive_source_discount():
     row = dict(sku='TEST', name='Chair', quantity='2.0', unit_price='EUR 20',
                vat_raw='VAT taxValue: [0.19] name: VAT 19%', discount_raw='-0.1', line_price='EUR 36')
