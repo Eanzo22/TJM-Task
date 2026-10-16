@@ -52,6 +52,44 @@ def _foreground_handle():
     return GetForegroundWindow()
 
 
+def _invalid_window_handle(exc):
+    """Recognize the Win32 race reported when a window disappears mid-check."""
+    code = getattr(exc, "winerror", None)
+    if code is None and getattr(exc, "args", None):
+        code = exc.args[0]
+    return code == 1400
+
+
+def _native_root_handle(handle):
+    """Return a currently valid GA_ROOT handle, or None during focus churn."""
+    from win32gui import GetAncestor, IsWindow
+    if not handle or not IsWindow(handle):
+        return None
+    try:
+        root = GetAncestor(handle, 2)
+    except Exception as exc:
+        # IsWindow and GetAncestor are separate calls. The handle can become
+        # invalid between them while the Tk review window is being destroyed.
+        if _invalid_window_handle(exc):
+            return None
+        raise
+    return root if root and IsWindow(root) else None
+
+
+def _native_process_id(handle):
+    """Read process ownership without leaking a transient invalid-handle error."""
+    from win32gui import IsWindow
+    from win32process import GetWindowThreadProcessId
+    if not handle or not IsWindow(handle):
+        return None
+    try:
+        return GetWindowThreadProcessId(handle)[1]
+    except Exception as exc:
+        if _invalid_window_handle(exc):
+            return None
+        raise
+
+
 def _matching_window_handles(pattern):
     """Filter native top-level titles before asking UIA to inspect controls."""
     from win32gui import EnumWindows, GetWindowText, IsWindowVisible
@@ -468,22 +506,30 @@ class UIAAdapter:
         return result
 
     def _keyboard_safe(self, control):
-        from win32process import GetWindowThreadProcessId
-        from win32gui import GetAncestor
         # Owned selector dialogs have their own foreground HWND. Requiring the
         # main HWND would incorrectly reject them; field focus plus process
         # ownership binds input to the discovered control in either window.
-        same_window = (not getattr(control,'handle',None) or
-                       GetAncestor(_foreground_handle(),2) == GetAncestor(control.handle,2))
+        foreground = _foreground_handle()
+        control_handle = getattr(control, 'handle', None)
+        foreground_root = _native_root_handle(foreground)
+        # There is no useful control comparison while Windows is between
+        # foreground windows, so avoid touching another handle in that state.
+        control_root = (_native_root_handle(control_handle)
+                        if foreground_root is not None and control_handle else None)
+        # GetForegroundWindow may briefly return NULL while the screenshot
+        # review window closes. That is an unsafe observation to retry, not a
+        # fatal GetAncestor(0) call.
+        same_window = (foreground_root is not None and
+                       (not control_handle or foreground_root == control_root))
         focused = control.has_keyboard_focus()
-        if same_window and getattr(control,'handle',None):
+        if same_window and control_handle:
             from pywinauto.controls.hwndwrapper import HwndWrapper
             from win32gui import IsChild
-            native = HwndWrapper(control.handle).get_focus()
-            focused = native is not None and (native.handle == control.handle or
-                (control.element_info.control_type=='ComboBox' and IsChild(control.handle,native.handle)))
+            native = HwndWrapper(control_handle).get_focus()
+            focused = native is not None and (native.handle == control_handle or
+                (control.element_info.control_type=='ComboBox' and IsChild(control_handle,native.handle)))
         return (same_window and control.is_enabled() and focused
-                and GetWindowThreadProcessId(_foreground_handle())[1] == control.process_id())
+                and _native_process_id(foreground) == control.process_id())
 
     def inspect_table(self, name):
         """Copy for calibration only; never issue a row-selection token."""
@@ -622,9 +668,15 @@ class UIAAdapter:
             for bar in table.descendants(control_type="ScrollBar"):
                 if bar.is_visible() and bar.window_text() == "Horizontal":
                     limit = min(limit, bar.rectangle().top - table.rectangle().top)
-            if (screenshot.width != geometry["width"] or bottom > limit
-                    or not header_matches(header, geometry['header_sha256'])):
-                raise ReviewRequired("Row is off-screen or table layout changed", stage="table_select")
+            if screenshot.width != geometry['width']:
+                raise ReviewRequired('Table width changed', stage='table_select',
+                                     expected=geometry['width'], observed=screenshot.width)
+            if bottom > limit:
+                raise ReviewRequired('Selected row is off-screen', stage='table_select',
+                                     expected={'row_bottom_at_most': limit}, observed={'row_bottom': bottom})
+            if not header_matches(header, geometry['header_sha256'], geometry.get('header_shape_sha256')):
+                raise ReviewRequired('Table header does not match calibrated layout', stage='table_select',
+                                     observed={'comparison': 'shape' if 'header_shape_sha256' in geometry else 'legacy_pixels'})
             if not self._keyboard_safe(table):
                 raise ReviewRequired("Table focus changed before activation", stage="table_select")
             if list(self.find(spec["path"], context).element_info.runtime_id) != fresh[index]['_table_id']:

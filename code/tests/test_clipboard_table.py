@@ -10,6 +10,54 @@ from fakturama_cash.errors import ReviewRequired
 from fakturama_cash.matching import exact_match
 
 
+def painted_header(*, background=(192, 192, 192), ink='white', labels=('Name', 'Description', 'Value'), shift=0):
+    from PIL import Image, ImageDraw
+    image = Image.new('RGB', (600, 30), 'white')
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 449, 28), fill=background)
+    for index, label in enumerate(labels):
+        draw.text((index * 150 + 8 + shift, 7), label, fill=ink)
+    return image
+
+
+@pytest.mark.parametrize('background, ink', [((160, 160, 160), 'white'), ('white', 'black'),
+                                             ('navy', 'yellow')])
+def test_header_shape_ignores_palette_but_keeps_ink_positions(background, ink):
+    original = painted_header()
+    recoloured = painted_header(background=background, ink=ink)
+    raw = clipboard_table.snapshot_fingerprint(original)['sha256']
+    shape = clipboard_table.header_shape_fingerprint(original)
+    assert not clipboard_table.header_matches(recoloured, raw)  # Legacy remains strict.
+    assert clipboard_table.header_matches(recoloured, raw, [shape])
+
+
+@pytest.mark.parametrize('change', ['shift', 'reorder', 'text', 'missing', 'width', 'height'])
+def test_header_shape_rejects_changed_headings_or_positions(change):
+    original = painted_header()
+    if change == 'shift':
+        changed = painted_header(shift=1)
+    elif change == 'reorder':
+        changed = painted_header(labels=('Value', 'Description', 'Name'))
+    elif change == 'text':
+        changed = painted_header(labels=('Name', 'Description', 'Price'))
+    elif change == 'missing':
+        changed = painted_header(labels=('Name', '', 'Value'))
+    else:
+        changed = original.crop((0, 0, 599 if change == 'width' else 600, 29 if change == 'height' else 30))
+    assert not clipboard_table.header_matches(changed, clipboard_table.snapshot_fingerprint(original)['sha256'],
+                                              clipboard_table.header_shape_fingerprint(original))
+
+
+@pytest.mark.parametrize('value', [None, [], ['not-a-hash'], 123])
+def test_invalid_shape_configuration_is_rejected(value):
+    config = {'columns': ['name'], 'copy_scope': 'all_rows',
+              'keyboard_selection': 'ctrl_home_down_double_click',
+              'row_geometry': {'width': 600, 'header_height': 30, 'row_height': 30, 'column_x': 8,
+                               'header_sha256': 'a' * 64, 'header_shape_sha256': value}}
+    with pytest.raises(ReviewRequired, match='calibrated row geometry'):
+        clipboard_table.validate_copy_config(config)
+
+
 def test_tsv_preserves_empty_cells_multiline_fields_and_duplicate_records():
     text = 'SKU\tDescription\tStock\r\nA\t"first\nsecond"\t\r\nA\t"first\nsecond"\t\r\n'
     rows = parse_table(text, ["sku", "description", "stock"], headers=["SKU", "Description", "Stock"])
@@ -215,13 +263,14 @@ def test_selection_rechecks_snapshot_and_consumes_token_once(adapter):
     assert len(grid.keys) == 3
 
 
-@pytest.mark.parametrize("failure", [None, "wrong_row", "changed_header"])
+@pytest.mark.parametrize("failure", [None, "wrong_row", "changed_header", "selection_colour", "width", "offscreen"])
 def test_double_click_rechecks_selected_row_and_calibrated_header(adapter, monkeypatch, failure):
     from PIL import Image
     subject, grid, _ = adapter
     picture = Image.new("RGB", (12, 30), "white")
     geometry = {"width": 12, "header_height": 5, "row_height": 10, "column_x": 4,
-                "header_sha256": clipboard_table.snapshot_fingerprint(picture.crop((0, 0, 12, 5)))["sha256"]}
+                "header_sha256": clipboard_table.snapshot_fingerprint(picture.crop((0, 0, 12, 5)))["sha256"],
+                "header_shape_sha256": clipboard_table.header_shape_fingerprint(picture.crop((0, 0, 12, 5)))}
     subject.profile["queries"]["products"]["clipboard_rows"].update(
         keyboard_selection="ctrl_home_down_double_click", row_geometry=geometry)
     grid.capture_as_image = lambda: picture
@@ -235,11 +284,22 @@ def test_double_click_rechecks_selected_row_and_calibrated_header(adapter, monke
     monkeypatch.setattr(clipboard_table, "copy_table", copy)
     monkeypatch.setattr(ui, "_click_control", lambda *args, **kwargs: calls.append(kwargs))
     if failure == "changed_header":
-        picture.putpixel((0, 0), (0, 0, 0))
-    if failure:
-        with pytest.raises(ReviewRequired):
+        picture.putpixel((1, 2), (0, 0, 0))
+    if failure == "selection_colour":
+        # No new calibration hash is added for the changed palette.
+        picture.paste('grey', (0, 0, 12, 5))
+    if failure == 'width':
+        picture = picture.crop((0, 0, 11, 30))
+    if failure == 'offscreen':
+        picture = picture.crop((0, 0, 12, 24))
+    if failure and failure != "selection_colour":
+        with pytest.raises(ReviewRequired) as error:
             subject.act("select_product", {"selected_product": row})
         assert calls == []
+        reason = {'width': 'Table width changed', 'offscreen': 'Selected row is off-screen',
+                  'changed_header': 'Table header does not match calibrated layout'}
+        if failure in reason:
+            assert error.value.details['reason'] == reason[failure]
     else:
         subject.act("select_product", {"selected_product": row})
         assert calls == [{"relative": (4, 20), "double": True}]

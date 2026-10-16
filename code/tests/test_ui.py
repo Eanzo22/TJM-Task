@@ -111,6 +111,41 @@ def test_root_binds_once_but_does_not_retarget_after_close(monkeypatch):
     assert len(calls) == 1
 
 
+def test_transient_missing_foreground_is_an_unsafe_observation(monkeypatch):
+    """Closing the calibration review must not call GetAncestor with HWND 0."""
+    import sys
+    from types import SimpleNamespace
+    from fakturama_cash import ui
+
+    monkeypatch.setattr(ui, '_foreground_handle', lambda: 0)
+    monkeypatch.setitem(sys.modules, 'win32gui', SimpleNamespace(
+        IsWindow=lambda handle: handle == 43,
+        GetAncestor=lambda handle, flag: pytest.fail('GetAncestor must not receive HWND 0'),
+        IsChild=lambda *args: False))
+    monkeypatch.setitem(sys.modules, 'win32process', SimpleNamespace(
+        GetWindowThreadProcessId=lambda handle: pytest.fail('A missing foreground has no process')))
+    control = SimpleNamespace(handle=43, has_keyboard_focus=lambda: True,
+                              is_enabled=lambda: True, process_id=lambda: 7)
+
+    assert UIAAdapter({}, desktop=object())._keyboard_safe(control) is False
+
+
+def test_native_root_handles_disappearance_between_validation_and_lookup(monkeypatch):
+    """A handle can close after IsWindow succeeds but before GetAncestor."""
+    import sys
+    from types import SimpleNamespace
+    from fakturama_cash import ui
+
+    class InvalidHandle(Exception):
+        winerror = 1400
+
+    monkeypatch.setitem(sys.modules, 'win32gui', SimpleNamespace(
+        IsWindow=lambda handle: True,
+        GetAncestor=lambda handle, flag: (_ for _ in ()).throw(InvalidHandle())))
+
+    assert ui._native_root_handle(43) is None
+
+
 @pytest.mark.parametrize("condition", [{"when": False}, {"unless": True}])
 def test_false_address_branch_does_not_discover_or_mutate_a_control(monkeypatch, condition):
     adapter = UIAAdapter({"actions": {"delivery": [

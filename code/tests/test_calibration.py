@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 import pytest
 
 from fakturama_cash.calibration import TABLES, apply_measurement, calibrate, measurement
-from fakturama_cash.clipboard_table import snapshot_fingerprint
+from fakturama_cash.clipboard_table import header_matches, header_shape_fingerprint, snapshot_fingerprint
 from fakturama_cash.errors import ReviewRequired
 
 
@@ -47,6 +47,7 @@ def test_measurements_use_new_device_pixels():
     assert updates['row_geometry']['header_height'] == 30
     assert updates['row_geometry']['row_height'] == 30
     assert snapshot_fingerprint(populated.crop((0, 0, 900, 30)))['sha256'] in updates['row_geometry']['header_sha256']
+    assert header_shape_fingerprint(populated.crop((0, 0, 900, 30))) in updates['row_geometry']['header_shape_sha256']
 
 
 @pytest.mark.parametrize('change', [
@@ -152,7 +153,8 @@ def calibration_fakes(monkeypatch, tmp_path, *, fail=None):
         return marks(items=items)
 
     return source, output, dict(adapter_factory=Adapter, capture=capture, review=review,
-                               prompt=lambda text: events.append('prompt')), events
+                               prompt=lambda text: events.append('prompt'),
+                               attention=lambda: events.append('attention')), events
 
 
 def test_guided_full_calibration_writes_separate_profile_and_evidence(monkeypatch, tmp_path):
@@ -167,9 +169,29 @@ def test_guided_full_calibration_writes_separate_profile_and_evidence(monkeypatc
     assert profile['calibrated'] is True
     assert profile['calibration']['completed_tables'] == result['tables']
     assert events.count('copy') == len(TABLES)
+    assert events.count('attention') == 2 * len(TABLES)
+    assert events.count('prompt') == 2 * len(TABLES)
     assert json.loads((tmp_path / 'evidence/previous-output-profile.json').read_text()) == {'existing': 'preserved'}
     assert len(list((tmp_path / 'evidence').glob('*-measurement.json'))) == len(TABLES)
     assert json.loads((tmp_path / 'evidence/draft-profile.json').read_text())['calibrated'] is False
+
+
+def test_calibration_records_shape_without_extra_selected_review(monkeypatch, tmp_path):
+    source, output, kwargs, _ = calibration_fakes(monkeypatch, tmp_path)
+    calibrate(source, output, tmp_path / 'evidence', **kwargs)
+    profile = json.loads(output.read_text())
+    for query, *_ in TABLES:
+        config = profile['queries'][query]['clipboard_rows']
+        if config.get('keyboard_selection') != 'ctrl_home_down_double_click':
+            continue
+        geometry = config['row_geometry']
+        original = images()[1].crop((0, 0, 900, 30))
+        selected = Image.new('RGB', original.size, 'darkgrey')
+        assert header_matches(original, geometry['header_sha256'], geometry['header_shape_sha256'])
+        assert header_matches(selected, geometry['header_sha256'], geometry['header_shape_sha256'])
+        selected.putpixel((1, 2), (255, 0, 0))
+        assert not header_matches(selected, geometry['header_sha256'], geometry['header_shape_sha256'])
+        assert not (tmp_path / 'evidence' / (query + '-selected-review.json')).exists()
 
 
 @pytest.mark.parametrize('fail', ['row_count', 'changed_capture', 'cancelled', 'not_empty', 'source_changed', 'output_changed'])
@@ -204,7 +226,7 @@ def test_calibrate_cli_reports_result_or_review_with_sound(monkeypatch, tmp_path
         assert Path(result['evidence']).is_file()
 
 
-@pytest.mark.parametrize('failure', [None, 'foreign_process', 'clipped', 'focus_lost', 'wrong_size', 'unstable'])
+@pytest.mark.parametrize('failure', [None, 'stale_once', 'foreign_process', 'clipped', 'focus_lost', 'wrong_size', 'unstable'])
 def test_windows_capture_guards_without_desktop_input(monkeypatch, failure):
     from fakturama_cash import calibration, ui
 
@@ -244,19 +266,28 @@ def test_windows_capture_guards_without_desktop_input(monkeypatch, failure):
             return Image.new('RGB', size, color)
 
     table = Table()
-    adapter = SimpleNamespace(find=lambda *args: table, root=lambda: SimpleNamespace(process_id=lambda: 7),
+    stale = SimpleNamespace(handle=44, parent=lambda: None)
+    find_calls = []
+
+    def find(*args):
+        find_calls.append(None)
+        return stale if failure == 'stale_once' and len(find_calls) == 1 else table
+
+    adapter = SimpleNamespace(find=find, root=lambda: SimpleNamespace(process_id=lambda: 7),
                               timeout=1, _keyboard_safe=lambda control: failure != 'focus_lost')
     bounds = (0, 0, 250 if failure == 'clipped' else 1000, 600)
     monkeypatch.setitem(sys.modules, 'pywinauto.controls.hwndwrapper', SimpleNamespace(HwndWrapper=lambda handle: window))
     monkeypatch.setitem(sys.modules, 'win32gui', SimpleNamespace(GetAncestor=lambda *args: 42,
+                                                              IsWindow=lambda handle: handle in (42, 43),
                                                               GetForegroundWindow=lambda: 0,
                                                               IsWindowEnabled=lambda handle: False))
-    monkeypatch.setitem(sys.modules, 'win32process', SimpleNamespace(GetWindowThreadProcessId=lambda handle: (0, 7)))
+    monkeypatch.setitem(sys.modules, 'win32process', SimpleNamespace(
+        GetWindowThreadProcessId=lambda handle: (0, 99 if failure == 'foreign_process' else 7)))
     monkeypatch.setattr(ui, '_activate_capture_window', lambda window: events.append('activate'))
     monkeypatch.setattr(ui, '_wait_capture_ready', lambda *args: bounds)
     monkeypatch.setattr(ui, '_capture_state', lambda window: (True, bounds))
     monkeypatch.setattr(calibration.time, 'sleep', lambda delay: None)
-    if failure:
+    if failure and failure != 'stale_once':
         with pytest.raises(ReviewRequired):
             calibration.capture_table(adapter, {'path': [{}]}, {})
     else:
@@ -264,3 +295,20 @@ def test_windows_capture_guards_without_desktop_input(monkeypatch, failure):
         assert image.size == (200, 120)
         assert metadata['foreground_verified_before_and_after'] is True
         assert events == ['activate', 'focus', '^{HOME}', 'capture', 'capture']
+        if failure == 'stale_once':
+            assert len(find_calls) == 4  # Retry, then two post-capture identity checks.
+
+
+def test_capture_rejects_a_stale_table_handle_as_review_required(monkeypatch):
+    from fakturama_cash import calibration
+
+    table = SimpleNamespace(handle=43, parent=lambda: None)
+    calls = []
+    adapter = SimpleNamespace(find=lambda *args: calls.append(None) or table)
+    monkeypatch.setitem(sys.modules, 'win32gui', SimpleNamespace(
+        IsWindow=lambda handle: False,
+        GetAncestor=lambda *args: pytest.fail('GetAncestor must not receive a stale handle')))
+
+    with pytest.raises(ReviewRequired, match='window changed'):
+        calibration.capture_table(adapter, {'path': [{}]}, {})
+    assert len(calls) == 3

@@ -45,7 +45,11 @@ For the table named in CMD:
 7. **Mark the screenshot**, following the exact click sequence below. Enter the total row count, check **I checked the column order and the total row count against Fakturama**, then click **Accept reviewed capture**.
 8. The command returns to the live table, copies its results, and compares the row count. Keep that table unchanged until CMD prompts for the next one.
 
+For lists opened by double-click, calibration stores colour-neutral header patterns from the reviewed empty and populated captures. Runtime compares strong stroke positions instead of exact RGB colours, ignoring faint font-smoothing edges and the outer horizontal border. This is an image-pattern check, not OCR; no text is guessed. Table width, row visibility and copied record values are still checked. The additional selected-header review is no longer needed. Older profiles without `header_shape_sha256` retain strict pixel matching until upgraded from verified calibration evidence or recalibrated. Font, scaling or layout changes can still require recalibration. Empty-table detection and Order-item editing keep their existing checks.
+
 The review window displays a **captured image**. Click marks there, not on Fakturama. If a mark is wrong, use **Reset marks** and repeat. Scrollbars in the review window scroll the image only.
+
+Whenever the next calibration step needs your input, the command restores and brings its CMD window forward, then plays two short tones. If Windows refuses the focus request, the CMD taskbar button flashes instead. Windows Terminal and IDE-integrated terminals may not expose a foregroundable console window, so the tones remain the fallback signal in those environments.
 
 ### Where to open the seven tables
 

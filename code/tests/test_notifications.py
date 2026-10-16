@@ -6,7 +6,37 @@ from types import SimpleNamespace
 import pytest
 
 from fakturama_cash.cli import main
-from fakturama_cash.notifications import capture_finished
+from fakturama_cash.notifications import capture_finished, operator_input_required
+
+
+@pytest.mark.parametrize('focused', [False, True])
+def test_operator_prompt_restores_console_and_flashes_only_if_focus_is_refused(monkeypatch, focused):
+    calls = []
+    kernel = SimpleNamespace(GetConsoleWindow=lambda: 42)
+    user = SimpleNamespace(
+        ShowWindow=lambda *args: calls.append(('restore', args)),
+        SetForegroundWindow=lambda handle: calls.append(('focus', handle)) or focused,
+        FlashWindow=lambda *args: calls.append(('flash', args)))
+    monkeypatch.setitem(sys.modules, 'ctypes', SimpleNamespace(
+        windll=SimpleNamespace(kernel32=kernel, user32=user)))
+    monkeypatch.setitem(sys.modules, 'winsound', SimpleNamespace(
+        Beep=lambda *args: calls.append(('beep', args))))
+
+    operator_input_required()
+
+    assert ('restore', (42, 9)) in calls
+    assert ('focus', 42) in calls
+    assert [call for call in calls if call[0] == 'flash'] == ([] if focused else [('flash', (42, True))])
+    assert [call for call in calls if call[0] == 'beep'] == [
+        ('beep', (660, 100)), ('beep', (880, 140))]
+
+
+def test_operator_prompt_notification_failure_is_harmless(monkeypatch):
+    broken = lambda *args: (_ for _ in ()).throw(RuntimeError('Unavailable'))
+    monkeypatch.setitem(sys.modules, 'ctypes', SimpleNamespace(
+        windll=SimpleNamespace(kernel32=SimpleNamespace(GetConsoleWindow=broken))))
+    monkeypatch.setitem(sys.modules, 'winsound', SimpleNamespace(Beep=broken))
+    operator_input_required()
 
 
 @pytest.mark.parametrize("success,expected", [(True, [(880, 150), (1175, 200)]), (False, [(440, 450)])])

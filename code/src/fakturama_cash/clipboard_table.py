@@ -5,11 +5,37 @@ import io
 import json
 import re
 import time
+from collections import Counter
 
 from .errors import ReviewRequired
 
 
-def header_matches(image, expected):
+def header_shape_fingerprint(image):
+    """Hash header ink positions, not the selected/unselected colour palette.
+
+    Each pixel column uses its most common colour as its local background.
+    Keep its strongest strokes; ignore palette-dependent font-smoothing edges
+    and the outer horizontal border. Positions and image size are not changed.
+    """
+    image = image.convert('RGB')
+    pixels = image.load()
+    mask = bytearray()
+    rows = range(1, image.height - 1) if image.height > 2 else range(image.height)
+    for x in range(image.width):
+        column = [pixels[x, y] for y in rows]
+        background = Counter(column).most_common(1)[0][0]
+        contrast = [max(abs(pixel[c] - background[c]) for c in range(3)) for pixel in column]
+        # Relative contrast works for light-on-dark and dark-on-light text.
+        threshold = max(contrast) * 0.75
+        mask.extend(value > threshold for value in contrast)
+    return hashlib.sha256(f'{image.width}x{image.height}:'.encode() + mask).hexdigest()
+
+
+def header_matches(image, expected, expected_shape=None):
+    if expected_shape is not None:
+        shapes = expected_shape if isinstance(expected_shape, list) else [expected_shape]
+        return header_shape_fingerprint(image) in shapes
+    # Legacy profiles remain strict until their reviewed captures are upgraded.
     fingerprints = expected if isinstance(expected, list) else [expected]
     return snapshot_fingerprint(image)['sha256'] in fingerprints
 
@@ -41,11 +67,12 @@ def validate_copy_config(config, *, allow_unverified=False):
         raise ReviewRequired("Unsupported table copy format", stage="table_read")
     if config.get("keyboard_selection") == "ctrl_home_down_double_click" or 'row_walk' in config:
         geometry = config.get("row_geometry", {})
-        if (not isinstance(geometry, dict) or set(geometry) != {"header_height", "row_height", "column_x", "width", "header_sha256"}
+        if (not isinstance(geometry, dict) or set(geometry) - {'header_shape_sha256'} != {"header_height", "row_height", "column_x", "width", "header_sha256"}
                 or any(type(geometry.get(k)) is not int or geometry[k] < 1
                        for k in ("header_height", "row_height", "column_x", "width"))
                 or geometry["column_x"] >= geometry["width"]
-                or not valid_header_hashes(geometry.get('header_sha256'))):
+                or not valid_header_hashes(geometry.get('header_sha256'))
+                or ('header_shape_sha256' in geometry and not valid_header_hashes(geometry['header_shape_sha256']))):
             raise ReviewRequired("Double-click selection requires calibrated row geometry", stage="table_select")
     if "empty_snapshot" in config:
         snapshot = config["empty_snapshot"]
@@ -104,10 +131,12 @@ def table_fingerprint(rows):
 def focus_table(control, is_safe):
     control.set_focus()
     if not is_safe() and getattr(control,'handle',None):
-        from win32gui import GetAncestor, GetForegroundWindow, IsWindowEnabled
+        from win32gui import IsWindowEnabled
         from pywinauto.controls.hwndwrapper import HwndWrapper
-        root = GetAncestor(control.handle,2)
-        if (GetAncestor(GetForegroundWindow(),2)==root and IsWindowEnabled(root)
+        from .ui import _foreground_handle, _native_root_handle
+        root = _native_root_handle(control.handle)
+        foreground_root = _native_root_handle(_foreground_handle())
+        if (root is not None and foreground_root == root and IsWindowEnabled(root)
                 and control.is_enabled()):
             # SWT's SetFocus can leave focus in the previous editor. Set native
             # keyboard focus only inside the already foreground, enabled window.

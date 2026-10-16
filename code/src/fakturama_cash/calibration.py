@@ -7,7 +7,7 @@ from pathlib import Path
 import platform
 import time
 
-from .clipboard_table import focus_table, snapshot_fingerprint, validate_copy_config
+from .clipboard_table import focus_table, header_shape_fingerprint, snapshot_fingerprint, validate_copy_config
 from .errors import ReviewRequired
 from .state import write_json
 from .ui import UIAAdapter
@@ -28,18 +28,32 @@ TABLES = (
 def capture_table(adapter, spec, context):
     """Capture a stationary foreground grid in the bound Fakturama process."""
     from pywinauto.controls.hwndwrapper import HwndWrapper
-    from win32gui import GetAncestor
-    from .ui import _activate_capture_window, _capture_state, _wait_capture_ready
+    from .ui import (_activate_capture_window, _capture_state, _native_process_id,
+                     _native_root_handle, _wait_capture_ready)
 
-    table = adapter.find(spec['path'], context)
-    parent = table
-    while parent is not None and not parent.handle:
-        parent = parent.parent()
-    if parent is None:
-        raise ReviewRequired('Table has no native capture window', stage='calibration')
-    window = HwndWrapper(GetAncestor(parent.handle, 2))
-    if window.process_id() != adapter.root().process_id():
+    # SWT may replace a grid's native handle while the Tk review window is
+    # closing. Re-discovery is a read-only operation, so retry that short race
+    # before focusing or sending any keys.
+    for attempt in range(3):
+        table = adapter.find(spec['path'], context)
+        parent = table
+        while parent is not None and not getattr(parent, 'handle', None):
+            parent = parent.parent()
+        root_handle = (_native_root_handle(parent.handle) if parent is not None else None)
+        if root_handle is not None:
+            break
+        if attempt < 2:
+            time.sleep(0.1)
+    else:
+        root_handle = None
+    if root_handle is None:
+        # The table may be re-created as the Tk review window closes. Never
+        # pass that stale HWND to GetAncestor or silently bind another app.
+        raise ReviewRequired('Table window changed before capture', stage='calibration',
+                             next_action='Keep Fakturama open and the requested table unchanged, then restart calibration.')
+    if _native_process_id(root_handle) != adapter.root().process_id():
         raise ReviewRequired('Calibration table belongs to another process', stage='calibration')
+    window = HwndWrapper(root_handle)
     _activate_capture_window(window)
     bounds = _wait_capture_ready(window, adapter.timeout)
     focus_table(table, lambda: adapter._keyboard_safe(table))
@@ -112,9 +126,14 @@ def measurement(empty_image, populated_image, marks, *, items=False):
     if type(x) is not int or not 0 < x < populated_image.width:
         raise ReviewRequired('Invalid row click position', stage='calibration')
     hashes = [fingerprint, snapshot_fingerprint(empty_image.crop((0, 0, empty_image.width, header)))['sha256']]
+    # Keep both reviewed states: the row/header divider can differ in an empty
+    # grid. Ignore palette changes, but retain the positions of header details.
+    shapes = [header_shape_fingerprint(image.crop((0, 0, image.width, header)))
+              for image in (populated_image, empty_image)]
     return {'empty_snapshot': snapshot_fingerprint(empty_image), 'row_geometry': {
         'width': populated_image.width, 'header_height': header, 'row_height': row,
-        'column_x': x, 'header_sha256': list(dict.fromkeys(hashes))}}, None
+        'column_x': x, 'header_sha256': list(dict.fromkeys(hashes)),
+        'header_shape_sha256': list(dict.fromkeys(shapes))}}, None
 
 
 def apply_measurement(profile, query, updates, layout=None):
@@ -147,10 +166,13 @@ def apply_measurement(profile, query, updates, layout=None):
 
 
 def calibrate(profile_path, output_path, directory, *, order_editor='New Order',
-              prompt=input, review=None, capture=capture_table, adapter_factory=UIAAdapter, progress=None):
+              prompt=input, review=None, capture=capture_table, adapter_factory=UIAAdapter,
+              progress=None, attention=None):
     from .calibration_view import review_image
+    from .notifications import operator_input_required
     review = review or review_image
     progress = progress or (lambda message: None)
+    attention = attention or operator_input_required
     profile_path, output_path, directory = Path(profile_path), Path(output_path), Path(directory)
     directory.mkdir(parents=True, exist_ok=False)
     original = profile_path.read_bytes()
@@ -171,6 +193,7 @@ def calibrate(profile_path, output_path, directory, *, order_editor='New Order',
         items = query == 'items_raw'
         empty_instruction = ('Keep the temporary Order item grid empty.' if items else
                              'Use its Search box to produce ZERO results (do not delete records).')
+        attention()
         prompt(f'\n{label}: {navigation}\n{empty_instruction}\n'
                'Keep MAIN Fakturama maximized; leave selectors at their normal size. '
                'Keep the table unobstructed. Return to CMD and press Enter to capture: ')
@@ -178,6 +201,7 @@ def calibrate(profile_path, output_path, directory, *, order_editor='New Order',
         empty_image.save(directory / (query + '-empty.png'))
         if review(empty_image, label + ': confirm EMPTY results', empty=True).get('empty_confirmed') is not True:
             raise ReviewRequired('Empty state was not confirmed', stage='calibration')
+        attention()
         prompt(('\nAdd one existing test product to this UNSAVED Order; do not save it.' if items else
                 '\nClear the Search filter and show at least one existing test row. '
                 'Confirm the total number of results, including off-screen rows.') +
