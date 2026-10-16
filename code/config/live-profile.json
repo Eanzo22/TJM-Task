@@ -1,5 +1,5 @@
 {
-  "calibrated": true,
+  "calibrated": false,
   "window_title_re": "^Fakturama - .*",
   "timeout_seconds": 120,
   "observation": "2026-10-04: reviewed English/EUR UIA mappings; PO000003/INV000002 save/reopen verified. See handoff for clean-run evidence.",
@@ -2394,6 +2394,50 @@
         ]
       }
     ],
+    "inspect_product_selection_settings": [
+      {
+        "operation": "select",
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Preferences"
+          },
+          {
+            "control_type": "TreeItem",
+            "title": "Documents"
+          }
+        ]
+      }
+    ],
+    "disable_product_auto_accept": [
+      {
+        "operation": "toggle",
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Preferences"
+          },
+          {
+            "control_type": "CheckBox",
+            "title": "immediately take over a clearly found item number"
+          }
+        ],
+        "value": false
+      },
+      {
+        "operation": "invoke",
+        "path": [
+          {
+            "control_type": "Window",
+            "title": "Preferences"
+          },
+          {
+            "control_type": "Button",
+            "title": "Apply"
+          }
+        ]
+      }
+    ],
     "activate_order": [
       {
         "operation": "select_tab",
@@ -3590,50 +3634,6 @@
         "operation": "open_document_row",
         "query": "documents_raw",
         "number": "${invoice_no}"
-      }
-    ],
-    "inspect_product_selection_settings": [
-      {
-        "operation": "select",
-        "path": [
-          {
-            "control_type": "Window",
-            "title": "Preferences"
-          },
-          {
-            "control_type": "TreeItem",
-            "title": "Documents"
-          }
-        ]
-      }
-    ],
-    "disable_product_auto_accept": [
-      {
-        "operation": "toggle",
-        "path": [
-          {
-            "control_type": "Window",
-            "title": "Preferences"
-          },
-          {
-            "control_type": "CheckBox",
-            "title": "immediately take over a clearly found item number"
-          }
-        ],
-        "value": false
-      },
-      {
-        "operation": "invoke",
-        "path": [
-          {
-            "control_type": "Window",
-            "title": "Preferences"
-          },
-          {
-            "control_type": "Button",
-            "title": "Apply"
-          }
-        ]
       }
     ]
   },
@@ -5203,6 +5203,23 @@
         }
       }
     },
+    "product_selection_settings": {
+      "fields": {
+        "auto_accept_single_product": {
+          "path": [
+            {
+              "control_type": "Window",
+              "title": "Preferences"
+            },
+            {
+              "control_type": "CheckBox",
+              "title": "immediately take over a clearly found item number"
+            }
+          ],
+          "read": "toggle"
+        }
+      }
+    },
     "debtor_methods": {
       "prepare": [
         {
@@ -6194,23 +6211,6 @@
         }
       ],
       "read": "native_text"
-    },
-    "product_selection_settings": {
-      "fields": {
-        "auto_accept_single_product": {
-          "path": [
-            {
-              "control_type": "Window",
-              "title": "Preferences"
-            },
-            {
-              "control_type": "CheckBox",
-              "title": "immediately take over a clearly found item number"
-            }
-          ],
-          "read": "toggle"
-        }
-      }
     }
   }
 }
