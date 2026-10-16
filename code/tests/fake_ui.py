@@ -16,6 +16,7 @@ class FakeUI:
         self.payment_draft = {}
         self.vat_draft = {}
         self.vats = []
+        self.vat_options = None
         self.products = []
         d = order.debtor
         self.debtors = [dict(company=d.company, first_name=d.first_name, last_name=d.last_name,
@@ -107,6 +108,8 @@ class FakeUI:
                   "debtor_methods": self.debtor_methods}
         values.update(payment_draft=self.payment_draft, vat_draft=self.vat_draft,
                       payment=ctx.get("selected_payment"), vat=ctx.get("selected_vat"))
+        values['product_vat_options'] = (self.vat_options if self.vat_options is not None else
+            [row.get('description') if row.get('description') is not None else row['name'] for row in self.vats])
         if name == "line":
             return deepcopy(self.order["items"][ctx["index"]])
         return deepcopy(values[name])

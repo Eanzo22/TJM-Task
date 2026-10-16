@@ -810,6 +810,10 @@ class UIAAdapter:
         from pywinauto.controls.win32_controls import ComboBoxWrapper
         return ComboBoxWrapper(control.handle).item_texts()
 
+    def _combo_selected_index(self, control):
+        from pywinauto.controls.win32_controls import ComboBoxWrapper
+        return ComboBoxWrapper(control.handle).selected_index()
+
     @staticmethod
     def _vat_code(value):
         match = re.fullmatch(r"([A-Z]{1,3}) \(.+\)", str(value))
@@ -829,7 +833,10 @@ class UIAAdapter:
             raise ReviewRequired("Dropdown option missing or ambiguous", stage="dropdown",
                                  expected=value, observed=options)
         expected = options[matches[0]]
-        if control.selected_text() != expected:
+        # A blank VAT label is valid, but the same text also represents no
+        # selection. For blank options verify the native index as well.
+        blank = not expected.strip()
+        if control.selected_text() != expected or (blank and self._combo_selected_index(control) != matches[0]):
             control.set_focus()
             # Closed-combo navigation sends normal SWT selection events, without
             # relying on its broken UIA SelectionItem or guessing popup bounds.
@@ -841,6 +848,11 @@ class UIAAdapter:
         if actual != expected:
             raise ReviewRequired("Dropdown selection was not retained", stage="dropdown",
                                  expected=expected, observed=actual)
+        if blank:
+            selected_index = wait_stable(lambda: self._combo_selected_index(control), timeout=self.timeout)
+            if selected_index != matches[0]:
+                raise ReviewRequired('Blank dropdown option was not selected', stage='dropdown',
+                                     expected=matches[0], observed=selected_index)
 
     def _navigate_control(self, step, context):
         operation = step.get("operation")

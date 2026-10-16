@@ -242,12 +242,49 @@ def test_equivalent_vat_decimal_is_reused(order, tmp_path):
     assert ui.product["vat_description"] == "Standard tax"
 
 
-def test_missing_vat_description_stops_before_opening_product(order, tmp_path):
+@pytest.mark.parametrize('description, options, label', [
+    ('', ['Free of Tax', ''], ''),
+    ('', ['Free of Tax', 'VAT 19%'], 'VAT 19%'),
+    ('   ', ['Free of Tax', '   '], '   '),
+])
+def test_blank_existing_vat_description_does_not_block_flow(order, tmp_path, description, options, label):
+    ui = FakeUI(order)
+    vat = {'name': 'VAT 19%', 'value': '19', 'code': 'S', 'description': description}
+    ui.vats = [dict(vat)]
+    ui.vat_options = options
+    result = run(order, ui, tmp_path)
+    assert result['invoice'] == 'TEST-INVOICE-01'
+    assert ui.product['vat_description'] == label
+    assert ui.vats == [vat]
+    assert not {'new_vat', 'fill_vat', 'save_vat'}.intersection(ui.actions)
+
+
+@pytest.mark.parametrize('options', [['', ''], ['', 'VAT 19%'], ['VAT 7%'], ['VAT 19%', 'VAT 19%']])
+def test_blank_vat_still_requires_one_unambiguous_dropdown_option(order, tmp_path, options):
+    ui = FakeUI(order)
+    ui.vats = [{'name': 'VAT 19%', 'value': '19', 'code': 'S', 'description': ''}]
+    ui.vat_options = options
+    with pytest.raises(ReviewRequired, match='VAT option missing or ambiguous'):
+        run(order, ui, tmp_path)
+    assert 'fill_product' not in ui.actions
+    assert 'save_product' not in ui.actions
+
+
+def test_unreadable_vat_description_is_not_assumed_to_be_blank(order, tmp_path):
     ui = FakeUI(order)
     ui.vats = [{"name": "VAT 19%", "value": "19", "code": "S"}]
     with pytest.raises(ReviewRequired, match="description is unreadable"):
         run(order, ui, tmp_path)
     assert "new_product" not in ui.actions
+
+
+@pytest.mark.parametrize('field, value', [('value', '7'), ('code', 'Z')])
+def test_blank_description_never_bypasses_vat_identity_checks(order, tmp_path, field, value):
+    ui = FakeUI(order)
+    ui.vats = [{'name': 'VAT 19%', 'value': '19', 'code': 'S', 'description': '', field: value}]
+    with pytest.raises(ReviewRequired, match='do not match'):
+        run(order, ui, tmp_path)
+    assert 'new_product' not in ui.actions
 
 
 def test_vat_code_is_verified_in_editor_even_when_list_omits_it(order, tmp_path):

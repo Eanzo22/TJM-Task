@@ -20,7 +20,7 @@ ACTIONS = {
 QUERIES = {"documents", "order", "debtor_results", "payment_results", "debtor", "product_results",
            "vat_results", "product", "line", "invoice", "invoice_methods", "environment",
            "payment", "payment_draft", "vat", "vat_draft", "debtor_methods"}
-QUERIES.update({'order_header', 'order_addresses', 'product_selection_settings'})
+QUERIES.update({'order_header', 'order_addresses', 'product_selection_settings', 'product_vat_options'})
 
 
 class Workflow:
@@ -274,17 +274,27 @@ class Workflow:
             observed_vat = self.read("vat")
             require(observed_vat, vat, "vat_definition")
             description = observed_vat.get("description")
-            if not isinstance(description, str) or not description.strip():
+            if not isinstance(description, str):
                 raise ReviewRequired("VAT dropdown description is unreadable", stage="vat_selection")
             self.ctx["product_definition"] = dict(sku=line.sku, name=line.description, description=line.description,
-                # The Product dropdown displays the VAT description. The full
-                # name/rate/code was checked in VATs just above. Reuse its
-                # observed description, which need not equal its internal name.
                 gross=str(line.gross_master), vat_description=description, cost="0.00", stock="0.00")
             self.write("new_product", suffix)
             # A New product shortcut can reactivate a selected master in 2.2.0.
             # Confirm the fresh form before entering the source fields (3.8).
             require(self.read("product"), dict(name="", description=""), "new_product_blank")
+            # 3.5 validates reused VAT by name/rate/code, not its description.
+            # The combo displays descriptions; an empty description can render
+            # as blank or fall back to the name. Use only one observed match,
+            # never edit the existing VAT or guess between duplicate labels.
+            options = self.read('product_vat_options')
+            labels = {key(description)} if description.strip() else {'', key(vat['name'])}
+            if not isinstance(options, list) or not all(isinstance(option, str) for option in options):
+                raise ReviewRequired('Product VAT options are unreadable', stage='vat_selection')
+            matches = [option for option in options if key(option) in labels]
+            if len(matches) != 1:
+                raise ReviewRequired('Product VAT option missing or ambiguous', stage='vat_selection',
+                                     expected=sorted(labels), observed=options)
+            self.ctx['product_definition']['vat_description'] = matches[0]
             self.write("fill_product", suffix)
             require(self.read("product"), self.ctx["product_definition"], "product_before_save")
             self.write("save_product", suffix)

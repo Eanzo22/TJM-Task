@@ -18,6 +18,7 @@ def dropdown(monkeypatch):
     adapter = ui.UIAAdapter({}, desktop=object())
     monkeypatch.setattr(adapter, "find", lambda *_: control)
     monkeypatch.setattr(adapter, "_combo_options", lambda _: options)
+    monkeypatch.setattr(adapter, '_combo_selected_index', lambda _: index[0])
     monkeypatch.setattr(adapter, "_keyboard_safe", lambda _: True)
     monkeypatch.setattr(ui, "wait_stable", lambda observe, **kwargs: observe())
     return adapter, options, control, keys
@@ -58,3 +59,40 @@ def test_vat_code_matches_the_code_not_a_localized_caption(dropdown):
     options[:] = ["Z (Zero rated goods)", "S (Standard rate)"]
     adapter._select_option({"path": [], "option_match": "vat_code"}, {}, "S")
     assert control.selected_text() == "S (Standard rate)"
+
+
+def test_blank_option_is_selected_and_index_verified(dropdown):
+    adapter, options, control, keys = dropdown
+    options[:] = ['Free of Tax', '']
+    adapter._select_option({'path': []}, {}, '')
+    assert keys == ['{HOME}', '{DOWN}']
+    assert control.selected_text() == ''
+    assert adapter._combo_selected_index(control) == 1
+
+
+def test_blank_text_without_selection_is_not_treated_as_selected(dropdown, monkeypatch):
+    adapter, options, control, keys = dropdown
+    options[:] = ['Free of Tax', '']
+    monkeypatch.setattr(control, 'selected_text', lambda: '')
+    indices = iter([-1, 1])
+    monkeypatch.setattr(adapter, '_combo_selected_index', lambda _: next(indices))
+    adapter._select_option({'path': []}, {}, '')
+    assert keys == ['{HOME}', '{DOWN}']
+
+
+def test_blank_selection_that_does_not_stick_stops(dropdown, monkeypatch):
+    adapter, options, control, keys = dropdown
+    options[:] = ['Free of Tax', '']
+    monkeypatch.setattr(control, 'selected_text', lambda: '')
+    monkeypatch.setattr(adapter, '_combo_selected_index', lambda _: -1)
+    with pytest.raises(ReviewRequired, match='Blank dropdown option was not selected'):
+        adapter._select_option({'path': []}, {}, '')
+    assert keys == ['{HOME}', '{DOWN}']
+
+
+def test_duplicate_blank_options_stop_before_input(dropdown):
+    adapter, options, _, keys = dropdown
+    options[:] = ['', '']
+    with pytest.raises(ReviewRequired, match='missing or ambiguous'):
+        adapter._select_option({'path': []}, {}, '')
+    assert keys == []
