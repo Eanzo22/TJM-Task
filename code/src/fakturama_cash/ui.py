@@ -8,6 +8,7 @@ workspace root for verification status.
 import json
 import re
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from .errors import ReviewRequired
@@ -401,6 +402,68 @@ class UIAAdapter:
                 raise ReviewRequired("Unknown read transform", observed=transform)
         return value
 
+    @contextmanager
+    def _editor_space(self, paths, context):
+        """Expose missing totals temporarily, without changing table calibration."""
+        if not paths:
+            yield
+            return
+        pane_path = paths[0][:1]
+        if (pane_path not in ([{'control_type': 'Pane', 'title': '${order_editor}'}],
+                              [{'control_type': 'Pane', 'title': '${invoice_editor}'}])
+                or any(path[:1] != pane_path for path in paths)):
+            raise ReviewRequired('Totals must belong to one mapped document editor', stage='editor layout')
+
+        def available():
+            try:
+                for path in paths:
+                    self._find_once(path, context)
+                return True
+            except LookupError:
+                return False  # Ambiguous controls/COM failures are NOT resize signals.
+
+        if available():
+            yield  # Already exposed: do not touch either divider or maximize button.
+            return
+
+        def stack():
+            parent = self._find_once(pane_path, context).parent()
+            if parent.element_info.control_type != 'Tab':
+                raise ReviewRequired('Document editor tab container changed', stage='editor layout')
+            return parent
+
+        def bounds():
+            box = stack().rectangle()
+            return box.left, box.top, box.right, box.bottom
+
+        def button(title):
+            # Scope to this editor's toolbar, never the OS window or Documents panel.
+            return self._find_once([{'control_type': 'ToolBar', 'direct': True},
+                                   {'control_type': 'Button', 'title': title}], context, parent=stack())
+
+        def has_button(title):
+            try:
+                return button(title).is_enabled()
+            except LookupError:
+                return False
+
+        original = bounds()
+        if not has_button('Maximize'):
+            raise ReviewRequired('Missing totals cannot be exposed by editor expansion', stage='editor layout',
+                                 next_action='Inspect the totals section/scroll position and control mapping.')
+        try:
+            _click_control(button('Maximize'))
+            self._wait_for(lambda: has_button('Restore') and available(),
+                           'Totals controls remain unavailable after editor expansion')
+            yield
+        finally:
+            # Restore even after a read/write failure. No business action is retried.
+            # Tables must only be copied/selected after returning to their old layout.
+            self._wait_for(lambda: has_button('Restore'), 'Editor Restore control unavailable')
+            _click_control(button('Restore'))
+            self._wait_for(lambda: has_button('Maximize') and bounds() == original,
+                           'Editor did not return to its original layout; inspect before continuing')
+
     def _read(self, spec, context):
         if spec.get('initial_draft') and context.get('order_tab') == 'New Order':
             return self._read(self.profile['queries'][spec['initial_draft']], context)
@@ -436,7 +499,18 @@ class UIAAdapter:
                 raise ReviewRequired('Document appears in multiple categories', stage='documents_read')
             return rows
         if "fields" in spec:
-            return {name: self._read(field, context) for name, field in spec["fields"].items()}
+            fields = spec['fields']
+            # Read document totals together, then restore BEFORE reading the item
+            # table. Master-data fields and unrelated queries are left unchanged.
+            totals = {name: field for name, field in fields.items()
+                      if name in ('net', 'vat', 'total', 'discount', 'shipping')
+                      and field.get('path', [])[:1] in (
+                          [{'control_type': 'Pane', 'title': '${order_editor}'}],
+                          [{'control_type': 'Pane', 'title': '${invoice_editor}'}])}
+            with self._editor_space([field['path'] for field in totals.values()], context):
+                values = {name: self._read(field, context) for name, field in totals.items()}
+            return {name: values[name] if name in values else self._read(field, context)
+                    for name, field in fields.items()}
         if "same_text" in spec:
             pair = spec["same_text"]
             if not isinstance(pair, list) or len(pair) != 2:
@@ -966,6 +1040,13 @@ class UIAAdapter:
         recipe = self.profile.get("actions", {}).get(name)
         if not recipe:
             raise ReviewRequired("Action not calibrated", stage=name)
+        # Only this totals action needs temporary editor space; existing profiles
+        # already contain the observed field paths, so no new calibration is needed.
+        paths = [step['path'] for step in recipe if 'path' in step] if name == 'fill_order_totals' else []
+        with self._editor_space(paths, context):
+            self._act_recipe(name, recipe, context)
+
+    def _act_recipe(self, name, recipe, context):
         for step_number, step in enumerate(recipe, start=1):
             if "when" in step or "unless" in step:
                 if "when" in step and "unless" in step:

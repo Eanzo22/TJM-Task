@@ -97,6 +97,21 @@ The vision environment settings from setup must still be set in this CMD, includ
 
 Calibration does not certify a complete business run. It retains the English control mappings; changed language/column order can need code/profile review. Changing resolution, scaling, or table layout later may require recalibration.
 
+### Hidden Order totals
+
+If the mapped totals controls are absent from the accessible editor, the automation
+temporarily uses that editor's **Maximize** button. It checks for the required
+controls before filling/reading them, then uses **Restore** and verifies the original
+editor bounds before any calibrated table read. Already exposed controls cause no
+layout change. This also applies to Invoice totals read-back; it does not retry a
+failed business write or bypass value verification.
+
+No new calibration or profile regeneration is required for this helper. Keep the
+original calibrated window size, scaling and divider layout: it restores the layout
+at operation entry, not an older layout you changed manually. If expansion cannot
+expose the controls, or restoration fails, execution stops for review. The helper
+is not a general solution for every nested scrolling/layout arrangement.
+
 ## If calibration stops
 
 - **No populated row:** prepare the missing record manually, then start calibration again.
