@@ -1,5 +1,6 @@
 """Observed Fakturama item-grid copy format and in-place cell editing."""
 import re
+from decimal import Decimal
 
 from .errors import ReviewRequired
 from .normalize import amount
@@ -67,9 +68,13 @@ def item_values(row):
     match = re.match(r'^VAT taxValue: \[([0-9]+(?:\.[0-9]+)?)\] ', row['vat_raw'])
     if not match:
         raise ReviewRequired('Unrecognized copied item VAT', stage='item_read')
+    # Copied discounts are dot-decimal fractions, not locale-formatted amounts:
+    # -0.125 means a 12.5% discount. Keep full precision and the finite-value check.
+    discount = amount(Decimal(row['discount_raw']))
     return dict(sku=row['sku'], description=row['name'], quantity=str(amount(row['quantity'])),
                 unit_net=str(amount(row['unit_price'])), vat_percent=str(amount(match[1]) * 100),
-                discount_percent=str(-amount(row['discount_raw']) * 100),
+                # Avoid feeding redundant zeros (12.500) back to locale parsing.
+                discount_percent=format((-discount * 100).normalize(), 'f'),
                 source_net=str(amount(row['line_price'])))
 
 
@@ -93,9 +98,11 @@ def edit_cell(adapter, step, context):
     fields = {'quantity': 'quantity', 'unit_price': 'unit_net', 'discount': 'discount_percent',
               'vat': 'vat_percent', 'name': 'description'}
     current = item_values(rows[index])[fields[column]]
-    # Preserve already correct cells, including the product's tax definition
-    # when several definitions share the source percentage.
-    if (current == str(value) if column == 'name' else amount(current) == amount(value)):
+    # Always commit the source net unit price: the displayed value can hide
+    # precision inherited from the rounded product gross price (3.14–3.16).
+    # Preserve other matching cells, especially the selected VAT definition.
+    if column != 'unit_price' and (
+            current == str(value) if column == 'name' else amount(current) == amount(value)):
         return
     table, point = visible_cell(adapter, spec['path'], context, layout, index, column)
     _click_control(table, relative=point, double=True)

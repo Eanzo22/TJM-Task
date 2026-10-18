@@ -166,6 +166,6 @@ def test_item_copy_discount_fraction_matches_positive_source_discount():
     row = dict(sku='TEST', name='Chair', quantity='2.0', unit_price='EUR 20',
                vat_raw='VAT taxValue: [0.19] name: VAT 19%', discount_raw='-0.1', line_price='EUR 36')
     result = item_values(row)
-    assert result['discount_percent'] == '10.0'
+    assert result['discount_percent'] == '10'
     assert result['vat_percent'] == '19.00'
     assert result['source_net'] == '36'

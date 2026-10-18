@@ -381,8 +381,118 @@ def test_stale_payment_dropdown_keeps_debtor_unsaved(order, tmp_path):
     with pytest.raises(ReviewRequired, match='did not refresh'):
         run(order, ui, tmp_path)
     assert ui.actions.count('save_payment') == 1
+    assert ui.actions.count('discard_debtor_draft') == 1
+    assert ui.actions.count('new_debtor') == 2
     assert 'activate_debtor' in ui.actions
     assert not set(ui.actions) & {'save_debtor', 'select_product', 'save_order'}
+
+
+@pytest.mark.parametrize('invalid_roles_after_refill', [False, True])
+def test_refresh_reads_blank_contact_before_validating_address_roles(order, tmp_path, invalid_roles_after_refill):
+    from types import SimpleNamespace
+    from fakturama_cash.master_forms import debtor_values
+
+    class StaleDropdown(FakeUI):
+        def read(self, name, ctx):
+            if name == 'debtor_methods' and self.actions.count('new_debtor') < 2:
+                return []
+            if name == 'debtor' and self.actions.count('new_debtor') == 2:
+                # Execute the real reader with the old definition still in
+                # context, not FakeUI's permissive dictionary-only response.
+                if self.actions.count('fill_debtor') < 2 or invalid_roles_after_refill:
+                    def missing_extra_address(*args):
+                        raise LookupError('No additional address in this draft')
+                    adapter = SimpleNamespace(
+                        profile={'queries': {q: q for q in ('debtor_contact', 'debtor_misc', 'debtor_billing_fields')}},
+                        _read=lambda q, c: dict(self.debtor) if q == 'debtor_contact' else {},
+                        _scalar=lambda *a: '', _find_once=missing_extra_address)
+                    return debtor_values(adapter, ctx)
+            return super().read(name, ctx)
+
+    ui = StaleDropdown(order)
+    if invalid_roles_after_refill:
+        with pytest.raises(ReviewRequired, match='address roles'):
+            run(order, ui, tmp_path)
+        assert 'save_debtor' not in ui.actions
+    else:
+        run(order, ui, tmp_path)
+        assert ui.actions.count('save_debtor') == 1
+    assert ui.actions.count('fill_debtor') == 2
+
+
+def test_new_payment_stale_list_reopens_and_refills_debtor_once(order, tmp_path):
+    class RefreshOnReopen(FakeUI):
+        def read(self, name, ctx):
+            if name == 'debtor_methods' and self.actions.count('new_debtor') < 2:
+                return []
+            return super().read(name, ctx)
+
+        def act(self, name, ctx):
+            super().act(name, ctx)
+            if name == 'new_debtor' and self.actions.count(name) == 2:
+                self.debtor['customer_id'] = 'TEST-CUSTOMER-02'
+
+    ui = RefreshOnReopen(order)
+    run(order, ui, tmp_path)
+    assert ui.actions.count('discard_debtor_draft') == 1
+    assert ui.actions.count('new_debtor') == ui.actions.count('fill_debtor') == 2
+    assert ui.actions.count('save_debtor') == ui.actions.count('save_payment') == 1
+    assert ui.actions.count('open_order') == 1
+    assert ui.actions.index('discard_debtor_draft') < ui.actions.index('fill_debtor_payment')
+    assert ui.debtor['customer_id'] == 'TEST-CUSTOMER-02'
+    assert ui.debtor['payment_method'] == order.payment.method
+    assert ui.debtor['billing']['street'] == order.debtor.billing.street
+    assert ui.debtor['delivery']['street'] == order.debtor.delivery.street
+    checkpoint = json.loads(next(tmp_path.glob('imagehash/workflows/*/checkpoint.json')).read_text())
+    assert checkpoint['actions']['new_debtor:payment_refresh'] == 'returned_unverified'
+
+
+@pytest.mark.parametrize('scenario', ['already_available', 'refreshed', 'existing_payment', 'duplicate'])
+def test_debtor_recovery_only_for_missing_newly_created_payment(order, tmp_path, scenario):
+    class PaymentList(FakeUI):
+        def read(self, name, ctx):
+            if name == 'debtor_methods' and scenario == 'duplicate' and self.payments:
+                return [order.payment.method, order.payment.method]
+            return super().read(name, ctx)
+
+    ui = PaymentList(order)
+    if scenario == 'already_available':
+        ui.debtor_methods = [order.payment.method]
+    if scenario == 'existing_payment':
+        ui.payments = [payment_definition(order.payment.method)]
+    if scenario in ('existing_payment', 'duplicate'):
+        with pytest.raises(ReviewRequired):
+            run(order, ui, tmp_path)
+    else:
+        run(order, ui, tmp_path)
+    assert 'discard_debtor_draft' not in ui.actions
+    assert ui.actions.count('new_debtor') == 1
+
+
+def test_uncertain_debtor_close_is_not_retried_or_followed_by_new_draft(order, tmp_path):
+    class StaleDropdown(FakeUI):
+        def read(self, name, ctx):
+            return [] if name == 'debtor_methods' else super().read(name, ctx)
+    ui = StaleDropdown(order, fail='discard_debtor_draft')
+    with pytest.raises(ReviewRequired):
+        run(order, ui, tmp_path)
+    assert ui.actions.count('discard_debtor_draft') == ui.actions.count('new_debtor') == 1
+    assert 'save_debtor' not in ui.actions
+
+
+def test_modified_debtor_draft_is_not_discarded(order, tmp_path):
+    class ChangedDraft(FakeUI):
+        def read(self, name, ctx):
+            if name == 'debtor_methods':
+                return []
+            result = super().read(name, ctx)
+            if name == 'debtor' and 'save_payment' in self.actions:
+                result['company'] = 'Unexpected manual edit'
+            return result
+    ui = ChangedDraft(order)
+    with pytest.raises(ReviewRequired, match='do not match'):
+        run(order, ui, tmp_path)
+    assert 'discard_debtor_draft' not in ui.actions
 
 
 def test_wrong_contact_editor_is_never_filled(order, tmp_path):

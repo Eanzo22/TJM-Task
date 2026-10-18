@@ -16,11 +16,12 @@ ACTIONS = {
     "inspect_payment", "inspect_vat",
     'inspect_environment', 'close_environment',
     'inspect_product_selection_settings', 'disable_product_auto_accept',
+    'discard_debtor_draft',
 }
 QUERIES = {"documents", "order", "debtor_results", "payment_results", "debtor", "product_results",
            "vat_results", "product", "line", "invoice", "invoice_methods", "environment",
            "payment", "payment_draft", "vat", "vat_draft", "debtor_methods"}
-QUERIES.update({'order_header', 'order_addresses', 'product_selection_settings', 'product_vat_options'})
+QUERIES.update({'order_header', 'order_addresses', 'product_selection_settings', 'product_vat_options', 'debtor_contact'})
 
 
 class Workflow:
@@ -213,7 +214,7 @@ class Workflow:
         self.progress("Selected Debtor addresses verified")
 
     def resolve_payment(self, method):
-        # The Debtor stays open throughout this conditional branch (2.10).
+        # Keep the Debtor open unless a newly created method leaves its list stale.
         methods = self.read("debtor_methods")
         matches = sum(key(name) == key(method) for name in methods)
         if matches > 1:
@@ -225,6 +226,7 @@ class Workflow:
             self.navigate("open_payments")
             self.navigate("search_payment")
             payment = exact_match(self.read("payment_results"), {"name": method}, identity="name")
+            created_payment = payment is None
             if payment is None:
                 self.write("new_payment")
                 self.write("fill_payment")
@@ -239,6 +241,25 @@ class Workflow:
             require(self.read("payment"), definition, "payment_definition")
             self.navigate("activate_debtor")
             methods = self.read("debtor_methods")
+            if created_payment and not any(key(name) == key(method) for name in methods):
+                # Rebuild only this run's unsaved draft. Never save an incorrect
+                # payment or retry payment creation; the Order remains open.
+                expected = {k: v for k, v in self.ctx['debtor_definition'].items() if k != 'payment_method'}
+                require(self.read('debtor'), expected, 'debtor_before_refresh')
+                self.evidence('debtor-before-refresh')
+                self.progress('New payment is missing from the dropdown; reopening and refilling the unsaved Debtor once')
+                self.write('discard_debtor_draft')
+                self.write('new_debtor', ':payment_refresh')
+                # This editor is blank even though the previous definition is
+                # retained for refilling. Validate address roles only after refill.
+                draft = self.read('debtor_contact')
+                require(draft, dict(company='', first_name='', last_name=''), 'new_debtor_blank')
+                if not draft.get('customer_id'):
+                    raise ReviewRequired('Proposed Customer ID missing', stage='debtor_payment')
+                # Leave the freshly proposed ID unchanged, even if it differs.
+                self.ctx['debtor_definition']['customer_id'] = draft['customer_id']
+                self.write('fill_debtor', ':payment_refresh')
+                methods = self.read('debtor_methods')
             if sum(key(name) == key(method) for name in methods) != 1:
                 raise ReviewRequired("Open Debtor payment dropdown did not refresh", stage="debtor_payment",
                                      expected=method, observed=methods,

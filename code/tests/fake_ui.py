@@ -102,6 +102,7 @@ class FakeUI:
                   'product_selection_settings': {'auto_accept_single_product': self.auto_accept_single_product},
                   "order": self.order, "order_header": self.order, 'order_addresses': self.order,
                   "invoice": self.invoice, "debtor": self.debtor,
+                  "debtor_contact": {k: self.debtor.get(k, '') for k in ('customer_id', 'company', 'first_name', 'last_name')},
                   "debtor_results": self.debtors, "payment_results": self.payments,
                   "product_results": [r for r in self.products if r["sku"] == ctx.get("line", {}).get("sku")],
                   "vat_results": self.vats, "product": self.product, "invoice_methods": self.methods,

@@ -4,6 +4,18 @@
   "timeout_seconds": 30,
   "observation": "2026-10-04: New product UIA fields and native VAT options observed. Partial form mapping, not a full workflow profile. VAT uses the description already verified in the VAT master list. Contact, Main address and Miscellaneous controls observed in the saved test contact. New Contact title and separate delivery roles still need mapping; helper recipes do not claim full fill_debtor support.",
   "actions": {
+    "discard_debtor_draft": [
+      {
+        "operation": "discard_debtor_draft",
+        "path": [
+          {"control_type": "Pane", "title": "${debtor_editor}"},
+          {"control_type": "Edit", "title": "Company"}
+        ],
+        "tab_path": [{"control_type": "TabItem", "title": "${debtor_tab}"}],
+        "save_dialog": [{"control_type": "Window", "title": "Save Parts"}],
+        "wait_absent": [{"control_type": "Pane", "title": "${debtor_editor}"}]
+      }
+    ],
     "new_product": [
       {
         "operation": "click_bounds",

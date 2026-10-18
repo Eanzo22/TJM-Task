@@ -31,6 +31,26 @@ def test_header_shape_ignores_palette_but_keeps_ink_positions(background, ink):
     assert clipboard_table.header_matches(recoloured, raw, [shape])
 
 
+def test_header_shape_ignores_two_pixel_bevel_changes():
+    from PIL import ImageDraw
+    original = painted_header()
+    changed = painted_header(background=(160, 160, 160))
+    draw = ImageDraw.Draw(changed)
+    draw.rectangle((0, 0, 599, 1), fill='black')
+    draw.rectangle((0, 28, 599, 29), fill='black')
+    raw = clipboard_table.snapshot_fingerprint(original)['sha256']
+    legacy = clipboard_table.header_shape_fingerprint(original, border=1)
+    assert clipboard_table.header_shape_fingerprint(changed, border=1) != legacy
+    assert clipboard_table.header_matches(changed, raw, clipboard_table.header_shape_fingerprint(original))
+
+
+def test_header_shape_accepts_existing_one_pixel_calibrations():
+    original = painted_header()
+    legacy = clipboard_table.header_shape_fingerprint(original, border=1)
+    assert legacy != clipboard_table.header_shape_fingerprint(original)
+    assert clipboard_table.header_matches(original, '0' * 64, legacy)
+
+
 @pytest.mark.parametrize('change', ['shift', 'reorder', 'text', 'missing', 'width', 'height'])
 def test_header_shape_rejects_changed_headings_or_positions(change):
     original = painted_header()

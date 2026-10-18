@@ -10,17 +10,19 @@ from collections import Counter
 from .errors import ReviewRequired
 
 
-def header_shape_fingerprint(image):
+def header_shape_fingerprint(image, *, border=2):
     """Hash header ink positions, not the selected/unselected colour palette.
 
     Each pixel column uses its most common colour as its local background.
     Keep its strongest strokes; ignore palette-dependent font-smoothing edges
-    and the outer horizontal border. Positions and image size are not changed.
+    and the two-pixel horizontal bevel. Positions and image size are not changed.
     """
     image = image.convert('RGB')
     pixels = image.load()
     mask = bytearray()
-    rows = range(1, image.height - 1) if image.height > 2 else range(image.height)
+    # Retain at least three rows in unusually small headers for ink detection.
+    border = min(border, max(0, (image.height - 3) // 2))
+    rows = range(border, image.height - border)
     for x in range(image.width):
         column = [pixels[x, y] for y in rows]
         background = Counter(column).most_common(1)[0][0]
@@ -34,7 +36,10 @@ def header_shape_fingerprint(image):
 def header_matches(image, expected, expected_shape=None):
     if expected_shape is not None:
         shapes = expected_shape if isinstance(expected_shape, list) else [expected_shape]
-        return header_shape_fingerprint(image) in shapes
+        # Keep existing one-pixel calibrations usable; newly reviewed captures
+        # ignore both bevel pixels, which change when the table gains focus.
+        return (header_shape_fingerprint(image) in shapes
+                or header_shape_fingerprint(image, border=1) in shapes)
     # Legacy profiles remain strict until their reviewed captures are upgraded.
     fingerprints = expected if isinstance(expected, list) else [expected]
     return snapshot_fingerprint(image)['sha256'] in fingerprints

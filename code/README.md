@@ -85,6 +85,8 @@ Confirm `validated_image` and compare the extracted fields with the image. Neith
 
 ## If the command stops
 
+If a payment method created during the run is missing from the open Debtor's dropdown, the workflow verifies the draft, closes it **without saving**, opens a fresh Debtor, and refills the extracted fields once. The Order stays open, the new proposed Customer ID is left unchanged, and the payment method is not created again. The Debtor is saved only after all fields and its payment method pass verification. A still-missing or ambiguous method stops for review; there is no recovery loop. This is a deliberate exception to keeping the original Debtor editor open, needed for Fakturama's stale dropdown.
+
 Read the reported stage/reason and evidence. Every new `run` starts a **new Order**, even for the same image; it does not resume or deduplicate. After possible writes, inspect the printed checkpoint:
 
 ```bat

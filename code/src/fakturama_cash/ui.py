@@ -1166,6 +1166,9 @@ class UIAAdapter:
                 if not self._keyboard_safe(control):
                     raise ReviewRequired('Editor focus changed before close', stage=name)
                 control.type_keys('^w', set_foreground=False, pause=0.05)
+            elif operation == 'discard_debtor_draft':
+                from .debtor_recovery import discard_draft
+                discard_draft(self, control, step, context)
             elif operation == "select_option":
                 self._select_option(step, context, value)
             elif operation == "toggle":

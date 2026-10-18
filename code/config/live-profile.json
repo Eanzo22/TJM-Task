@@ -4,6 +4,18 @@
   "timeout_seconds": 120,
   "observation": "2026-10-04: reviewed English/EUR UIA mappings; PO000003/INV000002 save/reopen verified. See handoff for clean-run evidence.",
   "actions": {
+    "discard_debtor_draft": [
+      {
+        "operation": "discard_debtor_draft",
+        "path": [
+          {"control_type": "Pane", "title": "${debtor_editor}"},
+          {"control_type": "Edit", "title": "Company"}
+        ],
+        "tab_path": [{"control_type": "TabItem", "title": "${debtor_tab}"}],
+        "save_dialog": [{"control_type": "Window", "title": "Save Parts"}],
+        "wait_absent": [{"control_type": "Pane", "title": "${debtor_editor}"}]
+      }
+    ],
     "open_order": [
       {
         "path": [
