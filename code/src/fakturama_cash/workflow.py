@@ -1,5 +1,5 @@
 """Small sequential workflow. The UI adapter observes; this module owns business decisions."""
-from .errors import ReviewRequired
+from .errors import ReviewRequired, error_sources
 from .document_fields import document_addresses
 from .matching import exact_match, payment_definition
 from .normalize import key
@@ -151,7 +151,7 @@ class Workflow:
             try:
                 self.evidence("failure")
             except Exception as capture_error:
-                self.journal.event("evidence_capture_failed", error=str(capture_error))
+                self.journal.event("evidence_capture_failed", error=str(capture_error), **error_sources(capture_error))
             if self.journal.data["actions"]:
                 self.journal.data["status"] = "review_required"
                 self.journal.flush()

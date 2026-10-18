@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-from .errors import ReviewRequired
+from .errors import ReviewRequired, error_sources
 from .extraction import extract
 from .models import OrderInput
 from .notifications import capture_finished
@@ -236,7 +236,8 @@ def execute(args, progress):
             details = exc.details
         else:
             details = {"stage": args.command, "reason": f"{type(exc).__name__}: {exc}",
-                       "safe_next_action": "Inspect input/configuration and any private evidence. No automatic retry was attempted."}
+                       "safe_next_action": "Inspect input/configuration and any private evidence. No automatic retry was attempted.",
+                       **error_sources(exc)}
         if error_path:
             write_json(error_path, details)
         progress.finish(f"STOPPED at {details['stage']}: review required; see the error details below")

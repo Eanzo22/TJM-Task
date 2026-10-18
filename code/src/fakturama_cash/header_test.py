@@ -1,6 +1,6 @@
 """A supervised, unsaved header calibration test; not the production workflow."""
 
-from .errors import ReviewRequired
+from .errors import ReviewRequired, error_sources
 from .state import write_json
 
 
@@ -85,6 +85,7 @@ def fill_and_verify_header(adapter, *, expected_number, order_date, reference, d
     except Exception as exc:
         record["status"] = "review_required"
         record["reason"] = str(exc)
+        record.update(error_sources(exc))
         write_json(evidence, record)
         # No rollback or automatic retry: a failed write may already have changed
         # the editor. Preserve the evidence and let the user inspect that state.
