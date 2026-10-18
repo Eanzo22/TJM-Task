@@ -43,7 +43,9 @@ def table_bounds(ocr):
 
     def unique(name):
         matches = [line for line in ocr["lines"] if label(line) == name]
+        print(matches)
         if len(matches) != 1 or not matches[0]["words"]:
+            print(f'Matches inside the if : { matches}')
             raise ValueError(f"Missing or ambiguous OCR anchor: {name}")
         return matches[0]
 

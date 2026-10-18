@@ -98,6 +98,7 @@ def edit_cell(adapter, step, context):
     fields = {'quantity': 'quantity', 'unit_price': 'unit_net', 'discount': 'discount_percent',
               'vat': 'vat_percent', 'name': 'description'}
     current = item_values(rows[index])[fields[column]]
+    print(f"Current row value: {current}")
     # Always commit the source net unit price: the displayed value can hide
     # precision inherited from the rounded product gross price (3.14–3.16).
     # Preserve other matching cells, especially the selected VAT definition.
